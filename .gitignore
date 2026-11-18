@@ -6,8 +6,10 @@
 # python
 __pycache__/
 *.pyc
+
+# virtual environment
+venv
 .venv/
-.pytest_cache/
 
 # node
 node_modules/
@@ -21,5 +23,10 @@ backend/uploads/
 
 # os / editor
 .DS_Store
+
+# IDE
 .vscode/*
 !.vscode/extensions.json
+
+# test
+.pytest_cache/
