@@ -1,0 +1,169 @@
+
+.dt-login {
+  min-height: 100vh;
+  background: #100b1b;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  box-sizing: border-box;
+}
+
+.dt-login-content {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.dt-login-brand {
+  font-size: 26px;
+  color: #c5a4fa;
+  font-weight: 600;
+}
+
+.dt-phone-container {
+  width: 320px;
+  max-width: 100%;
+  height: 220px;
+  margin: 20px 0;
+}
+
+.dt-phone {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.dt-login-header h1 {
+  font-size: 48px;
+  font-weight: 400;
+  margin: 0;
+}
+
+.dt-login-header p {
+  color: #ada0bd;
+  margin: 15px 0 30px;
+}
+
+.dt-login-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 30px;
+  border: 1px solid #ffffff25;
+  border-radius: 24px;
+  background: #ffffff08;
+  box-sizing: border-box;
+}
+
+.dt-field {
+  display: flex;
+  align-items: center;
+  background: #ffffff0b;
+  border: 1px solid #ffffff25;
+  border-radius: 12px;
+  padding: 0 15px;
+}
+
+.dt-field input {
+  width: 100%;
+  padding: 17px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: white;
+  font-size: 15px;
+}
+
+.dt-field input::placeholder {
+  color: #aaa0b8;
+}
+
+.dt-show-password {
+  border: none;
+  background: transparent;
+  color: #c5a4fa;
+  cursor: pointer;
+}
+
+.dt-login-options {
+  text-align: left;
+  font-size: 13px;
+}
+
+.dt-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dt-login-submit {
+  padding: 16px;
+  border: none;
+  border-radius: 50px;
+  background: linear-gradient(90deg, #c5a4fa, #8e6dc9);
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.dt-login-submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.dt-login-signup {
+  margin-top: 24px;
+  color: #ada0bd;
+  font-size: 13px;
+}
+
+.dt-login-signup button {
+  border: none;
+  background: transparent;
+  color: #c5a4fa;
+  cursor: pointer;
+}
+
+.dt-login-error {
+  color: #ffb0c1;
+  font-size: 13px;
+}
+
+.dt-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+
+.dt-login-content {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.dt-login-brand {
+  margin-bottom: 60px;
+}
+
+.dt-login-header {
+  margin-bottom: 32px;
+}
+
+.dt-login-header h1 {
+  font-size: clamp(42px, 6vw, 56px);
+  letter-spacing: -2px;
+}
+
+.dt-login-card {
+  width: 100%;
+}
