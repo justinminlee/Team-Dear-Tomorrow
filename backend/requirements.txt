@@ -12,3 +12,4 @@ pytest
 pytest-asyncio
 psycopg[binary]
 pwdlib[argon2]
+email-validator
