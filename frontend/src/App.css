@@ -1,0 +1,315 @@
+
+.app {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      ellipse at 75% 40%,
+      #30234e 0%,
+      transparent 55%
+    ),
+    #0c0b16;
+}
+
+.navbar {
+  height: 80px;
+  padding: 0 6%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ffffff15;
+}
+
+.logo {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -2px;
+}
+
+.logo span {
+  color: #b6a0ff;
+  font-size: 14px;
+  letter-spacing: 1px;
+  margin-left: 5px;
+}
+
+.nav-label,
+.eyebrow {
+  color: #b7a5ff;
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+
+.creator-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 430px) minmax(0, 1fr);
+  gap: 50px;
+  max-width: 1400px;
+  margin: auto;
+  padding: 55px 6%;
+}
+
+.creator-panel {
+  background: #ffffff09;
+  border: 1px solid #ffffff16;
+  border-radius: 25px;
+  padding: 30px;
+}
+
+.creator-panel h1 {
+  font-size: 36px;
+  letter-spacing: -1px;
+  line-height: 1.15;
+}
+
+.creator-panel h3 {
+  font-size: 14px;
+  margin-top: 28px;
+}
+
+.description,
+.helper-text {
+  color: #aaa7bc;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.upload-box {
+  display: grid;
+  place-items: center;
+  min-height: 110px;
+  border: 1px dashed #b6a0ff77;
+  border-radius: 16px;
+  background: #b6a0ff0a;
+  color: #d0c2ff;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.upload-box img {
+  width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
+
+.upload-box input {
+  display: none;
+}
+
+.swatches {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.swatch.selected {
+  outline: 2px solid #c9b8ff;
+  outline-offset: 3px;
+}
+
+.option-buttons,
+.future-options {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.option-buttons button,
+.future-options button {
+  border: 1px solid #ffffff25;
+  background: #ffffff0b;
+  color: #d2cce2;
+  padding: 12px 20px;
+  border-radius: 30px;
+}
+
+.option-buttons .selected-option,
+.future-options .active {
+  background: #b6a0ff;
+  color: #181020;
+  border-color: #b6a0ff;
+}
+
+.preview-panel {
+  text-align: center;
+  padding-top: 25px;
+}
+
+.preview-panel h2 {
+  font-size: clamp(28px, 4vw, 48px);
+  letter-spacing: -1px;
+}
+
+.future-options {
+  justify-content: center;
+  margin: 35px 0;
+}
+
+.avatar-stage {
+  width: 100%;
+  max-width: 650px;
+  margin: auto;
+  border-radius: 30px;
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      #a58be044,
+      transparent 65%
+    );
+}
+
+.future-caption {
+  color: #d0c2ff;
+  letter-spacing: 3px;
+  font-size: 12px;
+  margin-top: 15px;
+}
+
+@media (max-width: 850px) {
+  .creator-layout {
+    grid-template-columns: 1fr;
+    padding: 25px 5%;
+  }
+
+  .creator-panel {
+    padding: 22px;
+  }
+}
+
+
+
+/* ==================================
+   Me² AI — Minimal Landing Page
+================================== */
+
+.landing-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #ffffff;
+  color: #0b0911;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 40px 20px;
+}
+
+.landing-content {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: landingFadeIn 1s ease both;
+}
+
+.landing-logo {
+  margin: 0;
+  font-size: clamp(76px, 12vw, 124px);
+  font-weight: 500;
+  letter-spacing: -7px;
+  line-height: 1.1;
+}
+
+.landing-logo sup {
+  font-size: 0.45em;
+  vertical-align: super;
+  letter-spacing: -2px;
+}
+
+.landing-tagline {
+  margin: 25px 0 0;
+  font-size: clamp(22px, 3.5vw, 36px);
+  font-weight: 400;
+  color: #736c7d;
+  letter-spacing: -0.5px;
+}
+
+.landing-sphere {
+  width: min(100%, 480px);
+  height: clamp(280px, 40vw, 420px);
+  margin-top: 35px;
+  margin-bottom: 5px;
+  position: relative;
+  cursor: grab;
+}
+
+.landing-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  border: none;
+  border-radius: 100px;
+  background: #a78bdb;
+  color: #ffffff;
+  padding: 17px 34px;
+  font-size: 16px;
+  font-weight: 600;
+  transition:
+    transform 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.landing-button:hover {
+  background: #8e6dc9;
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px #a78bdb55;
+}
+
+.landing-button:focus-visible {
+  outline: 3px solid #5c3da2;
+  outline-offset: 4px;
+}
+
+.landing-footer {
+  color: #aaa3b2;
+  font-size: 13px;
+  margin-top: 20px;
+  letter-spacing: 0.5px;
+}
+
+@keyframes landingFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .landing-logo {
+    letter-spacing: -4px;
+  }
+
+  .landing-tagline {
+    margin-top: 18px;
+  }
+
+  .landing-sphere {
+    margin-top: 20px;
+    height: 300px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-content {
+    animation: none;
+  }
+
+  .landing-button {
+    transition: none;
+  }
+}
