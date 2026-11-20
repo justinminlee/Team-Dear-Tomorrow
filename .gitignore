@@ -35,3 +35,12 @@ backend/uploads/
 .pytest_cache/
 # Generated audio recordings
 *.wav
+
+# Local voice recordings and analysis outputs
+/VOICE/.env
+/VOICE/*.wav
+/VOICE/speaker_recordings/
+/VOICE/speaker_feature_output/
+/VOICE/style_conversation_output/
+/VOICE/voice_style_output/
+/VOICE/cartesia_trial_output/
