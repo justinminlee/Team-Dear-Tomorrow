@@ -32,7 +32,8 @@ def listen():
         speech_models=["universal-2"],
         disfluencies=True,
         filter_profanity=False,
-        format_text=False
+        format_text=False,
+        language_code="en"
     )
 
     # Transcribe the recorded audio.
