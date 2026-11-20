@@ -1,59 +1,178 @@
-import { useEffect, useState } from "react";
+
+import { useState } from "react";
+
+import WelcomePage from "./components/WelcomePage";
 import LoginPage from "./components/LoginPage";
 import SignUpPage from "./components/SignUpPage";
-import LandingPage from "./components/LandingPage";
-import { authApi, type AuthUser } from "./api/auth";
+import QuestionnairePage, {
+  type Question,
+} from "./components/QuestionnairePage";
 
-type Page = "login" | "signup" | "landing";
+type Page =
+  | "welcome"
+  | "login"
+  | "signup"
+  | "questionnaire"
+  | "complete";
+
+// TEMPORARY SAMPLE QUESTIONS
+// Replace these with FastAPI questions later.
+const demoQuestions: Question[] = [
+  {
+    id: 1,
+    text: "What should Tomorrow call you?",
+    type: "text",
+    sectionId: "about",
+    sectionTitle: "About You",
+    sectionDescription: "Let's start with the present.",
+    placeholder: "Your preferred name",
+    required: true,
+    sectionOrder: 1,
+  },
+  {
+    id: 2,
+    text: "What part of your future interests you most?",
+    type: "single_choice",
+    sectionId: "future",
+    sectionTitle: "Your Future",
+    sectionDescription:
+      "Tell us what you'd like to explore.",
+    required: true,
+    sectionOrder: 2,
+    options: [
+      { value: "career", label: "Career" },
+      { value: "relationships", label: "Relationships" },
+      { value: "personal", label: "Personal Growth" },
+      { value: "lifestyle", label: "Lifestyle" },
+    ],
+  },
+  {
+    id: 3,
+    text: "What would you like to ask your future self?",
+    type: "textarea",
+    sectionId: "future",
+    sectionTitle: "Your Future",
+    placeholder: "Write your question...",
+    sectionOrder: 2,
+  },
+];
+
+// Keep this function outside App so its reference stays stable.
+async function loadDemoQuestions(): Promise<Question[]> {
+  return demoQuestions;
+}
 
 export default function App() {
-  const [page, setPage] = useState<Page>("login");
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [checking, setChecking] = useState(true);
-  const [notice, setNotice] = useState("");
+  const [page, setPage] = useState<Page>("welcome");
 
-  useEffect(() => {
-    let active = true;
-    authApi.me().then(({ user }) => {
-      if (active) { setUser(user); setPage("landing"); }
-    }).catch(() => { /* No active session */ }).finally(() => {
-      if (active) setChecking(false);
-    });
-    return () => { active = false; };
-  }, []);
+  // 1. WELCOME
+  if (page === "welcome") {
+    return (
+      <WelcomePage
+        onStartQuestionnaire={() => setPage("login")}
+      />
+    );
+  }
 
-  if (checking) return <main className="dt-login"><div className="dt-login-content">Checking your session…</div></main>;
+  // SIGN UP PAGE
+  if (page === "signup") {
+    return (
+      <SignUpPage
+        onLogin={() => setPage("login")}
+        onSuccess={() => setPage("questionnaire")}
+      />
+    );
+  }
 
-  if (page === "signup") return (
-    <SignUpPage
-      onLogin={() => setPage("login")}
-      onSuccess={(message) => { setNotice(message); setPage("login"); }}
-    />
-  );
-  if (page === "login" || !user) return (
-    <>
-      {notice && <p role="status" style={{ textAlign: "center", padding: 12 }}>{notice}</p>}
+  // 3. LOGIN
+  if (page === "login") {
+    return (
       <LoginPage
-        onSignUp={() => { setNotice(""); setPage("signup"); }}
+        onSignUp={() => setPage("signup")}
         onLogin={async (email, password) => {
-          const data = await authApi.login(email, password);
-          setUser(data.user);
-          setNotice("");
-          setPage("landing");
+          const apiUrl = import.meta.env.VITE_API_URL;
+
+          if (!apiUrl) {
+            throw new Error(
+              "Backend API URL is not configured."
+            );
+          }
+
+          const response = await fetch(
+            `${apiUrl}/auth/login`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+              body: JSON.stringify({
+                email,
+                password,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              "Invalid email or password"
+            );
+          }
+
+          // Successful login opens Questionnaire.
+          setPage("questionnaire");
         }}
       />
-    </>
-  );
+    );
+  }
+
+  // 4. QUESTIONNAIRE
+  if (page === "questionnaire") {
   return (
-    <>
-      <div style={{ position: "absolute", top: 16, right: 20, zIndex: 10, display: "flex", gap: 12, alignItems: "center" }}>
-        <span>{user.username || user.email}</span>
-        <button type="button" onClick={async () => {
-          try { await authApi.logout(); setUser(null); setPage("login"); }
-          catch (error) { window.alert(error instanceof Error ? error.message : "Logout failed"); }
-        }}>Log out</button>
-      </div>
-      <LandingPage onGetStarted={() => { console.log("Get Started clicked"); }} />
-    </>
+    <QuestionnairePage
+      loadQuestions={loadDemoQuestions}
+      onBackToLogin={() => setPage("login")}
+      onSubmit={() => setPage("complete")}
+    />
+  );
+  }
+
+  // 5. TEMPORARY COMPLETION SCREEN
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#0b0b0d",
+        color: "#f2ede6",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "column",
+        textAlign: "center",
+        gap: "20px",
+        padding: "24px",
+      }}
+    >
+      <h1>You're ready to meet Tomorrow.</h1>
+
+      <p>
+        Questionnaire complete. Your answers
+        have not been saved in this demo.
+      </p>
+
+      <button
+        onClick={() => setPage("welcome")}
+        style={{
+          background: "#f5bf64",
+          color: "#17100a",
+          border: "none",
+          borderRadius: "30px",
+          padding: "14px 28px",
+          cursor: "pointer",
+        }}
+      >
+        Back to Welcome
+      </button>
+    </main>
   );
 }

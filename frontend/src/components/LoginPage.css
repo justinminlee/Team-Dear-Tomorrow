@@ -1,139 +1,285 @@
 
+/* =====================================
+   DEAR TOMORROW — ORANGE AUTH THEME
+===================================== */
+
 .dt-login {
+  --gold: #f5bf64;
+  --amber: #e88732;
+  --copper: #ac4a18;
+  --ivory: #f8f5ee;
+
+  position: relative;
   min-height: 100vh;
-  background: #100b1b;
-  color: white;
+  min-height: 100dvh;
+  width: 100%;
+
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px 20px;
+
+  background:
+    radial-gradient(
+      ellipse at 50% 80%,
+      #281307 0%,
+      #100a06 48%,
+      #080604 100%
+    );
+
+  color: var(--ivory);
+  font-family: Inter, system-ui, sans-serif;
+  padding: 50px 20px;
   box-sizing: border-box;
+  overflow: hidden;
+  isolation: isolate;
 }
 
+/* Background glow */
+
+.dt-login-glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  pointer-events: none;
+
+  background: radial-gradient(
+    circle,
+    rgba(232, 135, 50, 0.14),
+    transparent 70%
+  );
+
+  filter: blur(35px);
+}
+
+.dt-glow-top {
+  top: -280px;
+  left: -220px;
+}
+
+.dt-glow-bottom {
+  bottom: -300px;
+  right: -200px;
+}
+
+/* Main layout */
+
 .dt-login-content {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
+  margin: 0 auto;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
 }
 
+/* Brand */
+
 .dt-login-brand {
   font-size: 26px;
-  color: #c5a4fa;
   font-weight: 600;
+  letter-spacing: -1px;
+  color: var(--ivory);
+  margin-bottom: 65px;
 }
 
-.dt-phone-container {
-  width: 320px;
-  max-width: 100%;
-  height: 220px;
-  margin: 20px 0;
+.dt-login-brand span {
+  color: var(--gold);
 }
 
-.dt-phone {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+/* Heading */
+
+.dt-login-header {
+  margin-bottom: 32px;
 }
 
 .dt-login-header h1 {
-  font-size: 48px;
-  font-weight: 400;
   margin: 0;
+  font-size: clamp(42px, 6vw, 56px);
+  font-weight: 400;
+  letter-spacing: -2px;
+  line-height: 1.15;
 }
 
 .dt-login-header p {
-  color: #ada0bd;
-  margin: 15px 0 30px;
+  color: #c3ab90;
+  font-size: 13px;
+  letter-spacing: 1.2px;
+  margin: 16px 0 0;
 }
+
+/* Form card */
 
 .dt-login-card {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 30px;
-  border: 1px solid #ffffff25;
-  border-radius: 24px;
-  background: #ffffff08;
+
+  padding: 32px;
   box-sizing: border-box;
+
+  background: rgba(255, 180, 90, 0.035);
+  border: 1px solid rgba(245, 191, 100, 0.18);
+  border-radius: 24px;
+
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.24);
 }
+
+/* Inputs */
 
 .dt-field {
   display: flex;
   align-items: center;
-  background: #ffffff0b;
-  border: 1px solid #ffffff25;
-  border-radius: 12px;
-  padding: 0 15px;
+  gap: 12px;
+
+  min-height: 56px;
+  padding: 0 16px;
+
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(245, 191, 100, 0.2);
+  border-radius: 14px;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.dt-field:focus-within {
+  border-color: var(--gold);
+  background: rgba(245, 191, 100, 0.065);
 }
 
 .dt-field input {
+  flex: 1;
+  min-width: 0;
   width: 100%;
-  padding: 17px 0;
-  border: none;
-  outline: none;
+  padding: 16px 0;
+
+  border: 0;
+  outline: 0;
   background: transparent;
-  color: white;
+
+  color: var(--ivory);
+  font: inherit;
   font-size: 15px;
 }
 
 .dt-field input::placeholder {
-  color: #aaa0b8;
+  color: #a99682;
 }
 
 .dt-show-password {
-  border: none;
+  border: 0;
   background: transparent;
-  color: #c5a4fa;
+  color: var(--gold);
+  font-size: 12px;
   cursor: pointer;
 }
 
+/* Remember me */
+
 .dt-login-options {
-  text-align: left;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
   font-size: 13px;
 }
 
 .dt-remember {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.dt-login-submit {
-  padding: 16px;
-  border: none;
-  border-radius: 50px;
-  background: linear-gradient(90deg, #c5a4fa, #8e6dc9);
-  color: white;
-  font-size: 16px;
+  gap: 9px;
+  color: #dbcbb8;
   cursor: pointer;
 }
 
-.dt-login-submit:disabled {
-  opacity: 0.6;
-  cursor: wait;
+.dt-remember input {
+  accent-color: var(--gold);
 }
 
+.dt-text-link {
+  background: transparent;
+  border: 0;
+  color: var(--gold);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Main button */
+
+.dt-login-submit {
+  width: 100%;
+  min-height: 56px;
+  border: 0;
+  border-radius: 999px;
+
+  background: linear-gradient(
+    110deg,
+    #f5bf64 0%,
+    #e88732 100%
+  );
+
+  color: #241206;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dt-login-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(232, 135, 50, 0.22);
+}
+
+.dt-login-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Error messages */
+
+.dt-login-error {
+  color: #ffac91;
+  font-size: 13px;
+  text-align: left;
+  margin: 0;
+}
+
+/* Footer links */
+
 .dt-login-signup {
-  margin-top: 24px;
-  color: #ada0bd;
+  margin: 27px 0 0;
+  color: #bba68d;
   font-size: 13px;
 }
 
 .dt-login-signup button {
-  border: none;
+  border: 0;
+  padding: 0;
+  margin-left: 4px;
   background: transparent;
-  color: #c5a4fa;
+  color: var(--gold);
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.dt-login-error {
-  color: #ffb0c1;
-  font-size: 13px;
+.dt-login-signup button:hover,
+.dt-text-link:hover {
+  text-decoration: underline;
 }
+
+/* Accessibility */
 
 .dt-visually-hidden {
   position: absolute;
@@ -144,26 +290,30 @@
   white-space: nowrap;
 }
 
+/* Mobile */
 
-.dt-login-content {
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
+@media (max-width: 600px) {
+  .dt-login {
+    padding: 35px 16px;
+  }
+
+  .dt-login-brand {
+    margin-bottom: 40px;
+  }
+
+  .dt-login-card {
+    padding: 22px;
+    border-radius: 20px;
+  }
+
+  .dt-login-header h1 {
+    font-size: 40px;
+  }
 }
 
-.dt-login-brand {
-  margin-bottom: 60px;
-}
-
-.dt-login-header {
-  margin-bottom: 32px;
-}
-
-.dt-login-header h1 {
-  font-size: clamp(42px, 6vw, 56px);
-  letter-spacing: -2px;
-}
-
-.dt-login-card {
-  width: 100%;
+@media (prefers-reduced-motion: reduce) {
+  .dt-login-submit,
+  .dt-field {
+    transition: none;
+  }
 }
