@@ -1,3 +1,4 @@
+import { authApi } from "../api/auth";
 
 import { useState, type FormEvent } from "react";
 import "./LoginPage.css";
@@ -5,7 +6,7 @@ import "./SignUpPage.css";
 
 type SignUpPageProps = {
   onLogin: () => void;
-  onSuccess: () => void;
+  onSuccess: (message: string) => void;
 };
 
 export default function SignUpPage({
@@ -55,42 +56,11 @@ export default function SignUpPage({
     setLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-
-      if (!apiUrl) {
-        throw new Error("API URL is not configured.");
-      }
-
-      const response = await fetch(
-        `${apiUrl}/auth/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: username.trim(),
-            email: email.trim().toLowerCase(),
-            password,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-
-        throw new Error(
-          typeof data?.detail === "string"
-            ? data.detail
-            : response.status === 409
-              ? "This email is already registered."
-              : "Could not create your account."
-        );
-      }
+      const result = await authApi.register(username.trim(), email.trim().toLowerCase(), password);
 
       setPassword("");
       setConfirmPassword("");
-      onSuccess();
+      onSuccess(result.message);
     } catch (err) {
       setError(
         err instanceof Error
