@@ -112,14 +112,6 @@ export default function SignUpPage({
           dear <span>tomorrow.</span>
         </div>
 
-        <div className="dt-phone-container">
-          <img
-            src="/images/dear-tomorrow-phone.png"
-            alt="Lavender retro telephone"
-            className="dt-phone"
-          />
-        </div>
-
         <header className="dt-login-header">
           <h1>Create your account</h1>
           <p>Your future is just one call away.</p>
