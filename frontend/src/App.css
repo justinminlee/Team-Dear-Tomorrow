@@ -188,25 +188,36 @@
    Me² AI — Minimal Landing Page
 ================================== */
 
+/* ==================================
+   Me² AI — Landing Page
+================================== */
+
 .landing-page {
   min-height: 100vh;
   min-height: 100dvh;
+  width: 100%;
   background: #ffffff;
   color: #0b0911;
+
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 40px 20px;
+  justify-content: flex-start;
+
+  padding: 55px 20px 45px;
+  overflow: visible;
+  box-sizing: border-box;
 }
 
 .landing-content {
   width: 100%;
-  max-width: 760px;
+  max-width: 1100px;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+
   animation: landingFadeIn 1s ease both;
 }
 
@@ -225,34 +236,62 @@
 }
 
 .landing-tagline {
-  margin: 25px 0 0;
+  margin: 20px 0 0;
   font-size: clamp(22px, 3.5vw, 36px);
   font-weight: 400;
   color: #736c7d;
   letter-spacing: -0.5px;
 }
 
+/* ==================================
+   Tomorrow Particle Animation Area
+================================== */
+
 .landing-sphere {
-  width: min(100%, 480px);
-  height: clamp(280px, 40vw, 420px);
-  margin-top: 35px;
-  margin-bottom: 5px;
   position: relative;
-  cursor: grab;
+
+  width: min(95vw, 950px);
+  height: 650px;
+
+  margin: 15px auto 25px;
+
+  flex-shrink: 0;
+  overflow: visible;
 }
+
+.tomorrow-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.tomorrow-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ==================================
+   Buttons & Footer
+================================== */
 
 .landing-button {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 22px;
+
   border: none;
   border-radius: 100px;
+
   background: #a78bdb;
   color: #ffffff;
+
   padding: 17px 34px;
   font-size: 16px;
   font-weight: 600;
+  cursor: pointer;
+
   transition:
     transform 0.25s ease,
     background 0.25s ease,
@@ -277,6 +316,10 @@
   letter-spacing: 0.5px;
 }
 
+/* ==================================
+   Animations
+================================== */
+
 @keyframes landingFadeIn {
   from {
     opacity: 0;
@@ -289,8 +332,25 @@
   }
 }
 
+/* ==================================
+   Responsive Layout
+================================== */
+
+@media (max-width: 768px) {
+  .landing-page {
+    padding: 35px 15px;
+  }
+
+  .landing-sphere {
+    width: 100%;
+    height: 520px;
+    margin: 15px auto 25px;
+  }
+}
+
 @media (max-width: 600px) {
   .landing-logo {
+    font-size: clamp(60px, 15vw, 90px);
     letter-spacing: -4px;
   }
 
@@ -299,8 +359,9 @@
   }
 
   .landing-sphere {
-    margin-top: 20px;
-    height: 300px;
+    width: 100%;
+    height: 420px;
+    margin: 15px auto 20px;
   }
 }
 

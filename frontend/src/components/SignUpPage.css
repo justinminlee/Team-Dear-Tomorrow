@@ -1,0 +1,30 @@
+
+.dt-password-requirements {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  padding: 4px 2px 8px;
+}
+
+.dt-password-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #9387a6;
+  font-size: 12px;
+  transition: color 0.2s ease;
+}
+
+.dt-password-rule span:first-child {
+  font-size: 15px;
+}
+
+.dt-password-rule.valid {
+  color: #c2a1f6;
+}
+
+@media (max-width: 420px) {
+  .dt-password-requirements {
+    grid-template-columns: 1fr;
+  }
+}
