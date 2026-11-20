@@ -1,5 +1,6 @@
-"""Shared settings: API key, voices, model, and the system prompt."""
+"""Shared settings: API key, voices, model, and speaking style learning options."""
 import os
+from pathlib import Path
 
 import assemblyai as aai
 from dotenv import load_dotenv
@@ -16,21 +17,42 @@ VOICES = {
 
 MODEL = "qwen3.5-4b-32k-fast"  # any model on AssemblyAI's LLM Gateway
 
-SYSTEM_PROMPT = """
-You are the future version of the user, speaking to your younger self.
-You share the same personality, memories, values, and speaking style
-as the user, while reflecting greater wisdom, maturity, and life experience.
-
-Your purpose is to help your younger self reflect on their life,
-explore their potential, overcome challenges, and make better decisions.
-
-Speak naturally, warmly, and honestly, as if you are having a
-conversation with your past self, rather than acting as an AI assistant.
-
-Do not present imagined future events as guaranteed facts.
-Your replies are read out loud, so keep them to 1-3 short sentences
-and never use markdown, lists, or emojis.
-"""
-
 aai.settings.api_key = API_KEY
 aai.settings.polling_interval = 0.5  # check transcription status every 0.5s instead of 3s
+
+
+def _env_flag(name, default):
+    """Read a true/false setting from the environment."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# --- Speaking style learning -------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent
+
+# Where learned data lives. All of these are git-ignored because they hold personal data.
+DB_PATH = Path(os.getenv("DEAR_TOMORROW_DB", BASE_DIR / "dear_tomorrow.db"))
+TRANSCRIPTS_DIR = Path(os.getenv("DEAR_TOMORROW_TRANSCRIPTS", BASE_DIR / "transcripts"))
+LOG_PATH = Path(os.getenv("DEAR_TOMORROW_LOG", BASE_DIR / "dear_tomorrow.log"))
+
+# Master switch. Set STYLE_LEARNING_ENABLED=false in .env to turn learning off completely.
+STYLE_LEARNING_ENABLED = _env_flag("STYLE_LEARNING_ENABLED", True)
+
+# Run the LLM-based contextual analysis once this many new transcripts have piled up.
+# 1 = after every turn, so the profile in the DB is updated as soon as each turn ends.
+LLM_ANALYSIS_BATCH_SIZE = int(os.getenv("LLM_ANALYSIS_BATCH_SIZE", "1"))
+
+# A habit only shapes replies after it shows up in at least this many separate turns
+# and at least this many times in total, so one odd sentence never becomes a "habit".
+STYLE_MIN_SAMPLES = int(os.getenv("STYLE_MIN_SAMPLES", "2"))
+STYLE_MIN_OCCURRENCES = int(os.getenv("STYLE_MIN_OCCURRENCES", "2"))
+
+# Keep the prompt compact: at most this many habits per category.
+STYLE_MAX_PER_CATEGORY = 5
+
+# Background worker limits.
+STYLE_QUEUE_SIZE = 100       # queued tasks beyond this stay "pending" in the DB and are picked up later
+STYLE_MAX_ATTEMPTS = 3       # give up on a transcript after this many failed analysis attempts
+STYLE_SHUTDOWN_TIMEOUT = 20  # seconds to let queued analysis finish when the app closes
