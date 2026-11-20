@@ -21,6 +21,9 @@ out/
 *.sqlite3
 backend/uploads/
 
+# audio recordings (voice chatbot)
+*.wav
+
 # os / editor
 .DS_Store
 
@@ -30,3 +33,5 @@ backend/uploads/
 
 # test
 .pytest_cache/
+# Generated audio recordings
+*.wav
