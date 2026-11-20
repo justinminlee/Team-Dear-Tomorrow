@@ -8,8 +8,16 @@ from sqlalchemy.orm import sessionmaker
 # .env 파일 로드
 load_dotenv()
 
+# Fetch variables
+USER = os.getenv("user")
+PASSWORD = os.getenv("password")
+HOST = os.getenv("host")
+PORT = os.getenv("port")
+DBNAME = os.getenv("dbname")
+
 # 환경변수에서 DB 연결 정보 가져오기
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = f"postgresql+psycopg2://{USER}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
+#os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL is not set in .env file")
@@ -26,7 +34,12 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine,
 )
-
+# Test the connection
+try:
+    with engine.connect() as connection:
+        print("Connection successful!")
+except Exception as e:
+    print(f"Failed to connect: {e}")
 
 
 '''
