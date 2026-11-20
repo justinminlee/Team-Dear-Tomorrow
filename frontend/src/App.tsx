@@ -18,7 +18,7 @@ function App() {
     hair: "#30233D",
     outfit: "#A994DE",
     hairstyle: "long",
-  });
+  });   
 
   useEffect(() => {
     return () => {
