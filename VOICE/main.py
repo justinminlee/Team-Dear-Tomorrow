@@ -8,7 +8,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 API_KEY = os.environ["ASSEMBLYAI_API_KEY"]
-VOICE_ID = os.environ["ASSEMBLYAI_VOICE_ID"]  # your cloned voice
+
+# Store available cloned voices
+VOICES = {
+    "TJ": os.environ["TJ_VOICE_ID"],
+    "Peter": os.environ["PETER_VOICE_ID"],
+    "Indian": os.environ["INDIAN_VOICE_ID"]
+}
+
 MODEL = "qwen3.5-4b-32k-fast"  # any model on AssemblyAI's LLM Gateway
 
 SYSTEM_PROMPT = """
@@ -40,6 +47,22 @@ llm_client = httpx.Client(
     transport=httpx.HTTPTransport(retries=3),
 )
 
+# Allow the user to select a cloned voice
+def select_voice():
+    names = list(VOICES.keys())
+
+    print("\nSelect your voice:")
+
+    for i, name in enumerate(names, start=1):
+        print(f"{i}. {name}")
+
+    while True:
+        choice = input("Select a number: ")
+
+        if choice.isdigit() and 1 <= int(choice) <= len(names):
+            return VOICES[names[int(choice) - 1]]
+
+        print("Invalid choice. Please try again.")
 
 def listen():
     """Record from the mic until Enter is pressed, then transcribe it with AssemblyAI."""
@@ -81,25 +104,28 @@ def think(user_text):
     return reply
 
 
-# Convert the LLM's text response into speech using the cloned voice
-# and stream the generated audio in real time via AssemblyAI.
-def speak(text):
-    """Read text out loud in the cloned voice, playing audio as it streams in."""
-    config = aai.TTSConfig(voice_id=VOICE_ID)
+# Generate speech using the selected cloned voice
+def speak(text, voice_id):
+    config = aai.TTSConfig(voice_id=voice_id)
 
     with aai.TTSSession(config, api_key=API_KEY) as session:
-        with sd.RawOutputStream(samplerate=24000, channels=1, dtype="int16") as speaker:
-            for chunk in session.speak(text):  # 24 kHz 16-bit mono PCM
+        with sd.RawOutputStream(
+            samplerate=24000,
+            channels=1,
+            dtype="int16"
+        ) as speaker:
+            for chunk in session.speak(text):
                 speaker.write(chunk)
 
 
-# Manage the conversation loop by listening to the user,
-# generating responses, and playing them in the cloned voice until the user exits.
 def main():
+    # Select a cloned voice before starting the conversation.
+    voice_id = select_voice()
+
     print("Dear Tomorrow is ready. Say 'goodbye' to exit.")
 
     while True:
-        # A network hiccup in any step shouldn't end the conversation: report it and keep going.
+        # A network hiccup in any step shouldn't end the conversation.
         try:
             user_text = listen().strip()
 
@@ -110,15 +136,15 @@ def main():
             print(f"You: {user_text}")
 
             if "goodbye" in user_text.lower():
-                speak("Take care of yourself. See you in the future!")
+                speak("Take care of yourself. See you in the future!", voice_id)
                 break
 
             reply = think(user_text)
             print(f"Dear Tomorrow: {reply}")
-            speak(reply)
+            speak(reply, voice_id)
+
         except Exception as e:
             print(f"(Connection problem: {type(e).__name__}: {e}. Please say that again.)")
-
 
 if __name__ == "__main__":
     main()
