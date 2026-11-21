@@ -1,5 +1,6 @@
 
 import { useState, type FormEvent } from "react";
+import { authApi } from "../api/auth";
 import AuthLayout from "./AuthLayout";
 import "./SignUpPage.css";
 
@@ -21,6 +22,7 @@ export default function SignUpPage({
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirmEmailSent, setConfirmEmailSent] = useState(false);
 
   const requirements = {
     length: password.length >= 8,
@@ -57,42 +59,22 @@ export default function SignUpPage({
     setLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-
-      if (!apiUrl) {
-        throw new Error("API URL is not configured.");
-      }
-
-      const response = await fetch(
-        `${apiUrl}/auth/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: username.trim(),
-            email: email.trim().toLowerCase(),
-            password,
-          }),
-        }
+      const result = await authApi.register(
+        username.trim(),
+        email.trim().toLowerCase(),
+        password
       );
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-
-        throw new Error(
-          typeof data?.detail === "string"
-            ? data.detail
-            : response.status === 409
-              ? "This email is already registered."
-              : "Could not create your account."
-        );
-      }
 
       setPassword("");
       setConfirmPassword("");
-      onSuccess();
+
+      // Supabase may require the user to confirm their email before a
+      // session exists; until then they can't save questionnaire answers.
+      if (result.requires_email_confirmation) {
+        setConfirmEmailSent(true);
+      } else {
+        onSuccess();
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -102,6 +84,24 @@ export default function SignUpPage({
     } finally {
       setLoading(false);
     }
+  }
+
+  if (confirmEmailSent) {
+    return (
+      <AuthLayout onHome={onHome}>
+        <header className="dt-login-header">
+          <p className="dt-login-eyebrow">Almost there</p>
+          <h1>Check your email</h1>
+          <p className="dt-login-sub">
+            We sent a confirmation link to {email.trim().toLowerCase()}.
+            Confirm your address, then log in to continue.
+          </p>
+        </header>
+        <button type="button" className="dt-login-submit" onClick={onLogin}>
+          Go to log in →
+        </button>
+      </AuthLayout>
+    );
   }
 
   return (

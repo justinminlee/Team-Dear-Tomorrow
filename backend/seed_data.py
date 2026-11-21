@@ -23,6 +23,8 @@ DEFAULT_QUESTIONS = [
     ('future_life','Your Future Self','What is one thing you absolutely want your future self to have achieved or experienced?','text',None),
     ('future_question','Your Future Self','If you could ask your future self one question, what would it be?','text',None),
     ('tone','Your Future Self','How would you like your future self to communicate with you?','single_choice',['Warm, compassionate, and encouraging','Honest, direct, and realistic','Motivational and challenging','Calm, logical, and thoughtful']),
+    # Topics the future self should avoid. An empty list means "no restrictions".
+    ('restricted_topics','Conversation Boundaries','Which topics would you prefer your future self to avoid discussing?','multiple_choice',['Health','Finances','Religion','Political views','Relationships','Family']),
 ]
 
 
@@ -36,7 +38,7 @@ def seed_data(conn):
                      {'code':code,'name':name,'description':description})
     questionnaire_id = conn.execute(text('''INSERT INTO public.dim_questionnaire
         (questionnaire_code,version,title,description) VALUES ('future-self',1,'Future Self Questionnaire',
-        '20 questions for a possible future self')
+        '21 questions for a possible future self')
         ON CONFLICT (questionnaire_code,version) DO UPDATE SET title = EXCLUDED.title
         RETURNING questionnaire_id''')).scalar_one()
     # On existing DB, earlier question_code values may already exist. Link only unassigned questions.
@@ -49,5 +51,5 @@ def seed_data(conn):
                 questionnaire_id = COALESCE(public.dim_question.questionnaire_id, EXCLUDED.questionnaire_id)'''),
             {'qid':questionnaire_id,'code':code,'cat':cat,'question':txt,'kind':kind,
              'opts':json.dumps(opts) if opts is not None else None,'pos':i})
-    print('Seeded scenarios and questionnaire (20 questions; existing questions kept).')
+    print(f'Seeded scenarios and questionnaire ({len(DEFAULT_QUESTIONS)} questions; existing questions kept).')
 

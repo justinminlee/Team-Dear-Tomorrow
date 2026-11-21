@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from pathlib import Path
@@ -117,21 +117,30 @@ async def login(body: LoginRequest, response: Response):
     return {"user": public_user(data["user"])}
 
 
-@router.get("/me")
-async def me(request: Request, response: Response):
+async def current_user(request: Request, response: Response) -> dict:
+    """FastAPI dependency: the signed-in Supabase user, or 401.
+
+    Verifies the access cookie with Supabase Auth; if it has expired, uses the
+    refresh cookie and sets fresh cookies on the response.
+    """
     access = request.cookies.get(ACCESS_COOKIE)
     if access:
         status, data = await auth_request("GET", "user", access_token=access)
         if status == 200 and data.get("id"):
-            return {"user": public_user(data)}
+            return public_user(data)
     refresh = request.cookies.get(REFRESH_COOKIE)
     if refresh:
         status, data = await auth_request("POST", "token?grant_type=refresh_token", payload={"refresh_token": refresh})
         if status == 200 and data.get("access_token"):
             set_auth_cookies(response, data)
-            return {"user": public_user(data["user"])}
+            return public_user(data["user"])
     clear_auth_cookies(response)
     raise HTTPException(401, "Not authenticated")
+
+
+@router.get("/me")
+async def me(user: dict = Depends(current_user)):
+    return {"user": user}
 
 
 @router.post("/logout")

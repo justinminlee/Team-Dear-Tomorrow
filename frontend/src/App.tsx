@@ -1,12 +1,12 @@
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import Me2LandingPage from "./components/Me2LandingPage";
 import LoginPage from "./components/LoginPage";
 import SignUpPage from "./components/SignUpPage";
-import QuestionnairePage, {
-  type Question,
-} from "./components/QuestionnairePage";
+import QuestionnairePage, { type Answer } from "./components/QuestionnairePage";
+import { ApiError, authApi } from "./api/auth";
+import { questionnaireApi } from "./api/questionnaire";
 
 type Page =
   | "landing"
@@ -15,55 +15,30 @@ type Page =
   | "questionnaire"
   | "complete";
 
-// TEMPORARY SAMPLE QUESTIONS
-// Replace these with FastAPI questions later.
-const demoQuestions: Question[] = [
-  {
-    id: 1,
-    text: "What should Tomorrow call you?",
-    type: "text",
-    sectionId: "about",
-    sectionTitle: "About You",
-    sectionDescription: "Let's start with the present.",
-    placeholder: "Your preferred name",
-    required: true,
-    sectionOrder: 1,
-  },
-  {
-    id: 2,
-    text: "What part of your future interests you most?",
-    type: "single_choice",
-    sectionId: "future",
-    sectionTitle: "Your Future",
-    sectionDescription:
-      "Tell us what you'd like to explore.",
-    required: true,
-    sectionOrder: 2,
-    options: [
-      { value: "career", label: "Career" },
-      { value: "relationships", label: "Relationships" },
-      { value: "personal", label: "Personal Growth" },
-      { value: "lifestyle", label: "Lifestyle" },
-    ],
-  },
-  {
-    id: 3,
-    text: "What would you like to ask your future self?",
-    type: "textarea",
-    sectionId: "future",
-    sectionTitle: "Your Future",
-    placeholder: "Write your question...",
-    sectionOrder: 2,
-  },
-];
-
-// Keep this function outside App so its reference stays stable.
-async function loadDemoQuestions(): Promise<Question[]> {
-  return demoQuestions;
-}
-
 export default function App() {
   const [page, setPage] = useState<Page>("landing");
+
+  // If the session has expired, send the user back to log in.
+  const handleApiError = useCallback((err: unknown): never => {
+    if (err instanceof ApiError && err.status === 401) {
+      setPage("login");
+      throw new Error("Your session has expired. Please log in again.");
+    }
+    throw err;
+  }, []);
+
+  // useCallback keeps these stable so the questionnaire doesn't reload on every render.
+  const loadQuestions = useCallback(() => questionnaireApi.questions(), []);
+  const loadAnswers = useCallback(
+    () => questionnaireApi.myAnswers().catch(handleApiError),
+    [handleApiError]
+  );
+  const saveAnswers = useCallback(
+    async (answers: Record<string, Answer>) => {
+      await questionnaireApi.save(answers).catch(handleApiError);
+    },
+    [handleApiError]
+  );
 
   // 1. LANDING
   if (page === "landing") {
@@ -88,34 +63,7 @@ export default function App() {
         onSignUp={() => setPage("signup")}
         onHome={() => setPage("landing")}
         onLogin={async (email, password) => {
-          const apiUrl = import.meta.env.VITE_API_URL;
-
-          if (!apiUrl) {
-            throw new Error(
-              "Backend API URL is not configured."
-            );
-          }
-
-          const response = await fetch(
-            `${apiUrl}/auth/login`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              credentials: "include",
-              body: JSON.stringify({
-                email,
-                password,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              "Invalid email or password"
-            );
-          }
+          await authApi.login(email, password);
 
           // Successful login opens Questionnaire.
           setPage("questionnaire");
@@ -126,16 +74,18 @@ export default function App() {
 
   // 4. QUESTIONNAIRE
   if (page === "questionnaire") {
-  return (
-    <QuestionnairePage
-      loadQuestions={loadDemoQuestions}
-      onBackToLogin={() => setPage("login")}
-      onSubmit={() => setPage("complete")}
-    />
-  );
+    return (
+      <QuestionnairePage
+        loadQuestions={loadQuestions}
+        loadAnswers={loadAnswers}
+        saveAnswers={saveAnswers}
+        onBack={() => setPage("login")}
+        onComplete={() => setPage("complete")}
+      />
+    );
   }
 
-  // 5. TEMPORARY COMPLETION SCREEN
+  // 5. COMPLETION SCREEN
   return (
     <main
       style={{
@@ -186,7 +136,7 @@ export default function App() {
           margin: "18px 0 36px",
         }}
       >
-        Your answers have not been saved in this demo.
+        Your answers have been saved. You can come back and update them anytime.
       </p>
 
       <button
