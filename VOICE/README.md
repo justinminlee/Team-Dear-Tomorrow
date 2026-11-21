@@ -15,7 +15,7 @@ uv run main.py --reset-style   # delete everything learned for one voice
 uv run pytest                  # run the tests (no API calls, everything is mocked)
 ```
 
-`.env` needs `ASSEMBLYAI_API_KEY`, `TJ_VOICE_ID`, `PETER_VOICE_ID`, `INDIAN_VOICE_ID`.
+`.env` needs `ASSEMBLYAI_API_KEY`, `TJ_VOICE_ID`, `PETER_VOICE_ID`, `LUCAS_VOICE_ID`.
 
 Login and the questionnaire need `STYLE_DB=supabase`, plus `SUPABASE_URL` and `SUPABASE_ANON_KEY`
 in `backend/.env` (Supabase dashboard -> Project Settings -> API; the anon key, never the service key).

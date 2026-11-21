@@ -1,6 +1,6 @@
 """Save the user's transcripts: one UTF-8 text file per voice, one line per turn.
 
-The file is named after the voice, e.g. transcripts/indian.txt for the "Indian" voice.
+The file is named after the voice, e.g. transcripts/lucas.txt for the "Lucas" voice.
 
 Each line looks like:
     2026-11-21 02:13:12<TAB>ee218ac009eb40ea87c4695a4cd1ad80<TAB>Hello. Um. Damn.
@@ -30,7 +30,7 @@ def voice_dir_name(voice_id):
 
 
 def voice_file_label(voice_id):
-    """File name for a voice: its display name in lowercase (e.g. "indian"), or the ID if unknown."""
+    """File name for a voice: its display name in lowercase (e.g. "lucas"), or the ID if unknown."""
     for name, vid in VOICES.items():
         if vid == voice_id:
             return name.lower()
@@ -38,7 +38,7 @@ def voice_file_label(voice_id):
 
 
 def voice_transcript_file(voice_id, base_dir):
-    """Path of the voice's transcript file (e.g. transcripts/indian.txt), always directly inside base_dir."""
+    """Path of the voice's transcript file (e.g. transcripts/lucas.txt), always directly inside base_dir."""
     base = Path(base_dir).resolve()
     path = (base / f"{voice_dir_name(voice_file_label(voice_id))}.txt").resolve()
     if path.parent != base:

@@ -48,8 +48,8 @@ def test_tabs_and_newlines_cannot_break_the_format(tdir):
 
 
 def test_known_voices_use_their_name_as_file_name(tdir):
-    # conftest sets INDIAN_VOICE_ID=voice_indian and TJ_VOICE_ID=voice_tj
-    assert save_transcript("hi", "voice_indian", tdir)[1].name == "indian.txt"
+    # conftest sets LUCAS_VOICE_ID=voice_lucas and TJ_VOICE_ID=voice_tj
+    assert save_transcript("hi", "voice_lucas", tdir)[1].name == "lucas.txt"
     assert save_transcript("hi", "voice_tj", tdir)[1].name == "tj.txt"
 
 

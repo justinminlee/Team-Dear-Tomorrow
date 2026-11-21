@@ -7,7 +7,7 @@ from pathlib import Path
 os.environ.setdefault("ASSEMBLYAI_API_KEY", "test-key")
 os.environ.setdefault("TJ_VOICE_ID", "voice_tj")
 os.environ.setdefault("PETER_VOICE_ID", "voice_peter")
-os.environ.setdefault("INDIAN_VOICE_ID", "voice_indian")
+os.environ.setdefault("LUCAS_VOICE_ID", "voice_lucas")
 os.environ["ASSEMBLYAI_API_KEY"] = "test-key"
 os.environ["STYLE_DB"] = "sqlite"  # tests never touch Supabase
 

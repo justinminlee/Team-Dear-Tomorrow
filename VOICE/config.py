@@ -12,7 +12,7 @@ API_KEY = os.environ["ASSEMBLYAI_API_KEY"]
 VOICES = {
     "TJ": os.environ["TJ_VOICE_ID"],
     "Peter": os.environ["PETER_VOICE_ID"],
-    "Indian": os.environ["INDIAN_VOICE_ID"]
+    "Lucas": os.environ["LUCAS_VOICE_ID"]
 }
 
 MODEL = "qwen3.5-4b-32k-fast"  # any model on AssemblyAI's LLM Gateway
