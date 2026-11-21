@@ -39,10 +39,14 @@ LOG_PATH = Path(os.getenv("DEAR_TOMORROW_LOG", BASE_DIR / "dear_tomorrow.log"))
 
 # Where the style database lives: "sqlite" (local file above) or "supabase".
 # Supabase reuses the connection settings in backend/.env (user, password, host, port, dbname),
-# so the password is kept in one place. Tables go in their own schema, apart from the app's tables.
+# so the password is kept in one place. The 4 style tables sit in the public schema next to the
+# app's tables, locked with Row Level Security so the browser API can't read them.
 STYLE_DB = os.getenv("STYLE_DB", "sqlite").strip().lower()
 SUPABASE_ENV_FILE = Path(os.getenv("SUPABASE_ENV_FILE", BASE_DIR.parent / "backend" / ".env"))
-SUPABASE_SCHEMA = os.getenv("SUPABASE_SCHEMA", "voice_style")
+SUPABASE_SCHEMA = os.getenv("SUPABASE_SCHEMA", "public")
+
+# The future self is the user this many years from now (the questions ask about "10 years").
+FUTURE_YEARS_AHEAD = int(os.getenv("FUTURE_YEARS_AHEAD", "10"))
 
 # Master switch. Set STYLE_LEARNING_ENABLED=false in .env to turn learning off completely.
 STYLE_LEARNING_ENABLED = _env_flag("STYLE_LEARNING_ENABLED", True)
@@ -63,3 +67,5 @@ STYLE_MAX_PER_CATEGORY = 5
 STYLE_QUEUE_SIZE = 100       # queued tasks beyond this stay "pending" in the DB and are picked up later
 STYLE_MAX_ATTEMPTS = 3       # give up on a transcript after this many failed analysis attempts
 STYLE_SHUTDOWN_TIMEOUT = 20  # seconds to let queued analysis finish when the app closes
+# At startup, wait up to this long for answers spoken on the website to be analysed.
+STYLE_WARMUP_TIMEOUT = int(os.getenv("STYLE_WARMUP_TIMEOUT", "45"))

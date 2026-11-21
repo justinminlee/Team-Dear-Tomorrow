@@ -230,6 +230,94 @@ def test_database_keeps_the_text_not_a_local_path(db, tdir):
     service = make_service(db, tdir)
     tid = service.record("  um,   bro\tyeah ", "voice_a")
     with db._read() as conn:
-        row = dict(conn.execute("SELECT * FROM transcripts WHERE transcript_id = ?", (tid,)).fetchone())
+        row = dict(conn.execute("SELECT * FROM fact_transcript WHERE transcript_id = ?", (tid,)).fetchone())
     assert row["text"] == "um, bro yeah"
     assert "file_path" not in row
+
+
+def test_browser_roles_cannot_read_style_tables(db, add_transcript):
+    """On Supabase, the anon/authenticated roles behind the public web API must see nothing."""
+    if db.path is not None:
+        pytest.skip("PostgreSQL only (set VOICE_TEST_PG_URL)")
+    import psycopg
+
+    from database import STYLE_TABLES, PostgresStyleDatabase
+
+    add_transcript("um bro")
+    with psycopg.connect(db.pool.conninfo, autocommit=True) as conn:
+        conn.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+                     "THEN CREATE ROLE anon NOLOGIN; END IF; END $$")
+        # Like Supabase: the browser role can use the schema and was granted the tables.
+        conn.execute(f"GRANT USAGE ON SCHEMA {db.schema} TO anon")
+        conn.execute(f"GRANT ALL ON ALL TABLES IN SCHEMA {db.schema} TO anon")
+    PostgresStyleDatabase(db.pool.conninfo, schema=db.schema).close()  # setup runs again and locks the tables
+
+    with psycopg.connect(db.pool.conninfo) as conn:
+        for table in STYLE_TABLES:
+            with conn.transaction():
+                conn.execute("SET LOCAL ROLE anon")
+                with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                    with conn.transaction():
+                        conn.execute(f"SELECT * FROM {db.schema}.{table}")
+        rls = conn.execute("SELECT bool_and(relrowsecurity) FROM pg_class WHERE relnamespace = %s::regnamespace "
+                           "AND relname = ANY(%s)", (db.schema, list(STYLE_TABLES))).fetchone()[0]
+        assert rls is True
+
+
+def test_think_sends_questionnaire_answers(mock_gateway):
+    answers = [{"code": "age", "category": "About You", "question": "How old are you?", "answer": "24", "value": 24},
+               {"code": "goal", "category": "Values", "question": "Biggest goal?", "answer": "Run a cafe",
+                "value": "Run a cafe"}]
+    app.think("hi", None, answers)
+    system = mock_gateway[0]["messages"][0]["content"]
+    assert "you are about 34" in system and '"Run a cafe"' in system
+
+
+def test_skip_questions_and_sqlite_mode_skip_login(monkeypatch):
+    monkeypatch.setattr(app, "setup_profile", lambda db, **kw: pytest.fail("should not log in"))
+    assert app.start_profile(skip_questions=True) == (None, [])
+    monkeypatch.setattr(app.config, "STYLE_DB", "sqlite")
+    assert app.start_profile(skip_questions=False) == (None, [])
+
+
+def test_failed_login_stops_the_app(monkeypatch):
+    from user_profile import LoginError, LoginUnavailable
+    monkeypatch.setattr(app.config, "STYLE_DB", "supabase")
+    monkeypatch.setattr(app, "get_database", lambda: object())
+
+    def wrong(db, **kwargs):
+        raise LoginError("Too many failed login attempts.")
+    monkeypatch.setattr(app, "setup_profile", wrong)
+    assert app.start_profile(False) is None
+
+    def offline(db, **kwargs):
+        raise LoginUnavailable("Could not reach Supabase.")
+    monkeypatch.setattr(app, "setup_profile", offline)
+    assert app.start_profile(False) == (None, [])
+
+
+def test_style_belongs_to_the_logged_in_user():
+    assert app.style_key_for({"id": "user-1", "display_name": "Lucas"}, "voice_tj") == ("user-1", "Lucas")
+    assert app.style_key_for({"id": "user-1", "display_name": None}, "voice_tj") == ("user-1", "you")
+    assert app.style_key_for(None, "voice_tj") == ("voice_tj", "TJ")
+
+
+def test_spoken_website_answers_are_learned_before_the_chat(db, monkeypatch, capsys):
+    """Answers spoken on the website wait in the database; startup analyses them first."""
+    db.set_learning_consent("user-1", True)  # the website does this when answers are spoken
+    db.register_transcript("q1", "user-1", "um so like I wanna build stuff bro", 8)
+    db.register_transcript("q2", "user-1", "um honestly bro I dunno", 5)
+    monkeypatch.setattr(app, "chat", lambda *a, **k: '{"habits": []}')
+
+    service, learning = app.start_style_learning("user-1", "Lucas", no_learning=False)
+    try:
+        assert learning is True  # no consent question: already agreed on the website
+        assert "Learning how you talk from 2 earlier answers" in capsys.readouterr().out
+        style = db.get_style_profile("user-1")
+        assert style["total_samples"] == 2
+        assert {p["expression"] for p in style["patterns"]} >= {"um", "bro"}
+        # ...so the very first reply already uses the habits.
+        prompt = app.personalised_system_prompt("user-1")
+        assert '"um"' in prompt and '"bro"' in prompt
+    finally:
+        service.shutdown(timeout=5)

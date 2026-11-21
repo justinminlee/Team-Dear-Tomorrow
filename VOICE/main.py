@@ -1,9 +1,11 @@
 """Dear Tomorrow: a voice chat with your future self.
 
 Usage:
-    uv run main.py                 normal conversation (asks once per voice before learning)
-    uv run main.py --no-learning   talk without saving anything for style learning
-    uv run main.py --reset-style   delete everything learned for one voice
+    uv run main.py                   log in, answer the questions, then talk
+    uv run main.py --skip-questions  talk without logging in or answering the questions
+    uv run main.py --no-learning     talk without saving anything for style learning
+    uv run main.py --learn           ask the learning question again
+    uv run main.py --reset-style     delete everything learned for one voice
 """
 import argparse
 import logging
@@ -19,6 +21,7 @@ from database import close_database, get_database
 from prompts import BASE_SYSTEM_PROMPT, build_system_prompt
 from style_worker import create_style_service
 from transcript import delete_voice_transcripts
+from user_profile import LoginError, LoginUnavailable, login, setup_profile
 
 log = logging.getLogger(__name__)
 
@@ -111,24 +114,31 @@ def chat(chat_messages, max_tokens=200, temperature=None):
     return response.json()["choices"][0]["message"]["content"].strip()
 
 
-def personalised_system_prompt(voice_id):
-    """System prompt with the latest saved speaking style. Falls back to the default on any error."""
-    if not voice_id:
-        return BASE_SYSTEM_PROMPT
+def personalised_system_prompt(voice_id, user_profile=None):
+    """System prompt with the questionnaire answers and the latest saved speaking style.
+
+    If the style can't be loaded, the answers are still used; nothing here stops a reply.
+    """
+    style = None
+    if voice_id:
+        try:
+            style = get_database().get_style_profile(voice_id)
+        except Exception:
+            log.exception("Could not load speaking style profile; replying without it")
     try:
-        return build_system_prompt(get_database().get_style_profile(voice_id))
+        return build_system_prompt(style, user_profile)
     except Exception:
-        log.exception("Could not load speaking style profile; using the default prompt")
+        log.exception("Could not build the personalised prompt; using the default prompt")
         return BASE_SYSTEM_PROMPT
 
 
-def think(user_text, voice_id=None):
-    """Reply to the user, speaking in their learned style when one exists.
+def think(user_text, voice_id=None, user_profile=None):
+    """Reply as the user's future self, using their questionnaire answers and learned style.
 
     The system message is refreshed every turn so newly learned habits apply right away,
     while the rest of the conversation history is kept.
     """
-    messages[0] = {"role": "system", "content": personalised_system_prompt(voice_id)}
+    messages[0] = {"role": "system", "content": personalised_system_prompt(voice_id, user_profile)}
     user_message = {"role": "user", "content": user_text}
 
     reply = chat(messages + [user_message])
@@ -157,14 +167,16 @@ NO = {"n", "no"}
 
 
 def ask_learning_consent(db, voice_id, ask_again=False):
-    """Ask once per voice whether we may learn from their speech. The answer is remembered.
+    """Ask once per speaker whether we may learn from their speech. The answer is remembered.
 
+    voice_id is the style key: the user's id when logged in, else the cloned voice's id.
+    Answering questions out loud on the website already counts as a yes.
     ask_again=True (the --learn option) asks again even if the user said no before.
     """
     consent = db.get_learning_consent(voice_id)
     if consent is not None and not ask_again:
         if not consent:
-            print("(Speaking style learning is OFF for this voice. To turn it on: uv run main.py --learn)")
+            print("(Speaking style learning is OFF. To turn it on: uv run main.py --learn)")
         return consent
 
     where = "your Supabase database" if config.STYLE_DB == "supabase" else "a database on this computer"
@@ -174,23 +186,40 @@ def ask_learning_consent(db, voice_id, ask_again=False):
     print("You can delete them anytime with: uv run main.py --reset-style")
     answer = ""
     while answer not in YES | NO:  # a blank Enter or a typo must not silently mean "no"
-        answer = input("Allow speaking style learning for this voice? (y/n): ").strip().lower()
+        answer = input("Allow speaking style learning? (y/n): ").strip().lower()
     consent = answer in YES
     db.set_learning_consent(voice_id, consent)
     print("(Learning is ON.)" if consent else "(Learning is OFF. To turn it on later: uv run main.py --learn)")
     return consent
 
 
-def start_style_learning(voice_id, no_learning, ask_again=False):
-    """Return (style_service, learning_on). If anything fails, the chat just runs without learning."""
+def style_key_for(user, voice_id):
+    """Whose speaking style this is: the logged-in user (so it follows them to any voice),
+    or, without a login, the cloned voice as before."""
+    if user:
+        return str(user["id"]), user.get("display_name") or "you"
+    return voice_id, voice_name(voice_id)
+
+
+def start_style_learning(style_key, display_name, no_learning, ask_again=False):
+    """Return (style_service, learning_on). If anything fails, the chat just runs without learning.
+
+    Samples waiting from the website (spoken questionnaire answers) are analysed before the
+    chat starts, so the very first reply can already sound like the user.
+    """
     if not config.STYLE_LEARNING_ENABLED or no_learning:
         return None, False
     try:
         db = get_database()
-        db.ensure_profile(voice_id, voice_name(voice_id))
-        learning = ask_learning_consent(db, voice_id, ask_again)
+        db.ensure_profile(style_key, display_name)
+        learning = ask_learning_consent(db, style_key, ask_again)
+        waiting = len(db.pending_rule_ids())
         service = create_style_service(db, chat)
         service.start()  # also resumes analysis left unfinished last time
+        if waiting:
+            print(f"(Learning how you talk from {waiting} earlier answer{'s' if waiting != 1 else ''}...)")
+            if not service.worker.wait_until_idle(timeout=config.STYLE_WARMUP_TIMEOUT):
+                print("(Still learning in the background; replies will pick it up as it finishes.)")
         return service, learning
     except Exception as e:
         log.exception("Style learning could not start")
@@ -199,22 +228,66 @@ def start_style_learning(voice_id, no_learning, ask_again=False):
 
 
 def reset_style():
-    """Delete everything learned for one voice: DB rows and transcript file."""
-    voice_id = select_voice()
-    name = voice_name(voice_id)
+    """Delete a learned speaking style: DB rows and the local transcript file.
+
+    Logged-in users' style (including spoken website answers) is stored under their account;
+    older data is stored under a cloned voice.
+    """
+    print("\nWhose speaking style do you want to delete?")
+    print("1. Mine (log in)")
+    print("2. A cloned voice's (data saved without logging in)")
+    choice = ""
+    while choice not in {"1", "2"}:
+        choice = input("Select a number: ").strip()
+    if choice == "1":
+        try:
+            user = login()
+        except LoginError as e:
+            print(e)
+            return
+        key, name = style_key_for(user, None)
+    else:
+        key, name = style_key_for(None, select_voice())
     answer = input(f"Delete all learned speaking style data for {name}? Type 'yes' to confirm: ")
     if answer.strip().lower() != "yes":
         print("Cancelled.")
         return
-    removed = get_database().reset_profile(voice_id)
-    delete_voice_transcripts(voice_id, config.TRANSCRIPTS_DIR)
+    removed = get_database().reset_profile(key)
+    delete_voice_transcripts(key, config.TRANSCRIPTS_DIR)
     print(f"Deleted the speaking style profile for {name} ({removed} transcripts).")
 
 
 # --- Main ---------------------------------------------------------------------------
 
+def start_profile(skip_questions):
+    """Log in and run the questionnaire. Returns (user, answers for the prompt).
+
+    user is None when skipped or login isn't available. Returns None if the user couldn't
+    log in, so the app stops instead of chatting as nobody.
+    """
+    if skip_questions:
+        return None, []
+    if config.STYLE_DB != "supabase":
+        print("(The questionnaire needs STYLE_DB=supabase, so I'll skip it this time.)")
+        return None, []
+    try:
+        return setup_profile(get_database(), listen_fn=listen)
+    except LoginUnavailable as e:
+        print(f"({e} Continuing without your questionnaire answers.)")
+        return None, []
+    except LoginError as e:
+        print(f"{e} Run the app again to retry, or use --skip-questions.")
+        return None
+    except Exception as e:
+        log.exception("Questionnaire failed")
+        print(f"(Couldn't load the questionnaire: {type(e).__name__}. Continuing without it.)")
+        return None, []
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Dear Tomorrow voice chat")
+    parser.add_argument("--skip-questions", action="store_true",
+                        help="don't log in or answer the questionnaire this session")
     parser.add_argument("--no-learning", action="store_true",
                         help="don't save or analyse anything this session")
     parser.add_argument("--learn", action="store_true",
@@ -242,9 +315,17 @@ def main():
         reset_style()
         return
 
-    # Select a cloned voice before starting the conversation.
+    # Who the user is: log in and answer the questionnaire before any voice chat.
+    started = start_profile(args.skip_questions)
+    if started is None:
+        return
+    user, user_profile = started
+
+    # Select a cloned voice before starting the conversation. The voice is only how replies
+    # sound; the speaking style belongs to the user (see style_key_for).
     voice_id = select_voice()
-    style_service, learning = start_style_learning(voice_id, args.no_learning, args.learn)
+    style_key, style_name = style_key_for(user, voice_id)
+    style_service, learning = start_style_learning(style_key, style_name, args.no_learning, args.learn)
 
     print("Dear Tomorrow is ready. Say 'goodbye' to exit.")
 
@@ -263,13 +344,13 @@ def main():
                 # Save the user's words and queue them for background analysis.
                 # This returns immediately; the reply below never waits for it.
                 if learning:
-                    style_service.record(user_text, voice_id)
+                    style_service.record(user_text, style_key)
 
                 if "goodbye" in user_text.lower():
                     speak("Take care of yourself. See you in the future!", voice_id)
                     break
 
-                reply = think(user_text, voice_id)
+                reply = think(user_text, style_key, user_profile)
                 print(f"Dear Tomorrow: {reply}")
                 speak(reply, voice_id)
 

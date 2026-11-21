@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import "./QuestionnairePage.css";
+import VoiceAnswer from "./VoiceAnswer";
 
 export type QuestionType =
   | "text"
@@ -24,6 +25,8 @@ export interface Question {
   placeholder?: string;
   order?: number;
   sectionOrder?: number;
+  /** Answer by speaking (free-text questions only). */
+  voice?: boolean;
 }
 
 export type Answer = string | number | boolean | string[];
@@ -32,8 +35,11 @@ export interface QuestionnairePageProps {
   loadQuestions: () => Promise<Question[]>;
   /** Previously saved answers, so the user can pick up where they left off. */
   loadAnswers?: () => Promise<Record<string, Answer>>;
-  /** Persist answers. Called on every "Continue" and on "Finish". */
-  saveAnswers: (answers: Record<string, Answer>) => Promise<void>;
+  /** Persist answers. Called on every "Continue" and on "Finish".
+   *  spokenIds: questions whose current answer was spoken, not typed. */
+  saveAnswers: (answers: Record<string, Answer>, spokenIds: string[]) => Promise<void>;
+  /** Turn a recorded answer into text. Needed for questions with `voice: true`. */
+  transcribe?: (audio: Blob) => Promise<string>;
   onComplete: () => void;
   onBack?: () => void;
 }
@@ -61,9 +67,12 @@ export default function QuestionnairePage({
   loadQuestions,
   loadAnswers,
   saveAnswers,
+  transcribe,
   onComplete,
   onBack,
 }: QuestionnairePageProps) {
+  // Questions whose current answer came from a recording (used for speaking-style learning).
+  const [spoken, setSpoken] = useState<Set<string>>(new Set());
   const [questions, setQuestions] = useState<Question[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState("");
@@ -165,7 +174,7 @@ export default function QuestionnairePage({
     setSaving(true);
     setError("");
     try {
-      if (Object.keys(toSave).length > 0) await saveAnswers(toSave);
+      if (Object.keys(toSave).length > 0) await saveAnswers(toSave, [...spoken].filter((id) => id in toSave));
       if (isLast) onComplete();
       else {
         setNotice("Progress saved.");
@@ -187,7 +196,25 @@ export default function QuestionnairePage({
     const options = q.type === "boolean" ? BOOLEAN_OPTIONS : q.options ?? [];
 
     let input;
-    if (isChoice) {
+    if (q.voice && transcribe) {
+      input = (
+        <VoiceAnswer
+          id={qId}
+          label={q.text}
+          value={typeof value === "string" ? value : ""}
+          transcribe={transcribe}
+          onChange={(text, wasSpoken) => {
+            setAnswer(key, text);
+            setSpoken((prev) => {
+              const next = new Set(prev);
+              if (wasSpoken) next.add(key);
+              else next.delete(key);
+              return next;
+            });
+          }}
+        />
+      );
+    } else if (isChoice) {
       input = (
         <div className="me2-options" id={qId} role="group" aria-label={q.text} tabIndex={-1}>
           {options.map((o) => {

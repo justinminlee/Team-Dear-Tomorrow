@@ -21,7 +21,7 @@ COMPLETED = "completed"
 FAILED = "failed"
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS voice_profiles (
+CREATE TABLE IF NOT EXISTS dim_voice_style (
     voice_id          TEXT PRIMARY KEY,
     display_name      TEXT,
     total_words       INTEGER NOT NULL DEFAULT 0,
@@ -33,9 +33,9 @@ CREATE TABLE IF NOT EXISTS voice_profiles (
     updated_at        TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS speaking_patterns (
+CREATE TABLE IF NOT EXISTS fact_speaking_pattern (
     id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    voice_id           TEXT NOT NULL REFERENCES voice_profiles(voice_id) ON DELETE CASCADE,
+    voice_id           TEXT NOT NULL REFERENCES dim_voice_style(voice_id) ON DELETE CASCADE,
     category           TEXT NOT NULL,
     expression         TEXT NOT NULL,
     source             TEXT NOT NULL DEFAULT 'rule',  -- 'rule' or 'llm' (discovered by the LLM)
@@ -46,11 +46,11 @@ CREATE TABLE IF NOT EXISTS speaking_patterns (
     last_seen_at       TEXT NOT NULL,
     UNIQUE (voice_id, category, expression)
 );
-CREATE INDEX IF NOT EXISTS idx_patterns_voice_expression ON speaking_patterns(voice_id, expression);
+CREATE INDEX IF NOT EXISTS idx_speaking_pattern_voice_expression ON fact_speaking_pattern(voice_id, expression);
 
-CREATE TABLE IF NOT EXISTS transcripts (
+CREATE TABLE IF NOT EXISTS fact_transcript (
     transcript_id        TEXT PRIMARY KEY,
-    voice_id             TEXT NOT NULL REFERENCES voice_profiles(voice_id) ON DELETE CASCADE,
+    voice_id             TEXT NOT NULL REFERENCES dim_voice_style(voice_id) ON DELETE CASCADE,
     text                 TEXT NOT NULL,   -- what the user said in this turn
     word_count           INTEGER NOT NULL,
     analysis_status      TEXT NOT NULL DEFAULT 'pending',
@@ -61,13 +61,13 @@ CREATE TABLE IF NOT EXISTS transcripts (
     processed_at         TEXT,
     llm_processed_at     TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_transcripts_status ON transcripts(voice_id, analysis_status, llm_analysis_status);
+CREATE INDEX IF NOT EXISTS idx_fact_transcript_status ON fact_transcript(voice_id, analysis_status, llm_analysis_status);
 
 -- One row per (transcript, expression). This is what stops double counting:
 -- an expression found by both the rules and the LLM, or by a retried batch,
 -- is only ever added to the totals once per transcript.
-CREATE TABLE IF NOT EXISTS transcript_patterns (
-    transcript_id     TEXT NOT NULL REFERENCES transcripts(transcript_id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS fact_transcript_pattern (
+    transcript_id     TEXT NOT NULL REFERENCES fact_transcript(transcript_id) ON DELETE CASCADE,
     expression        TEXT NOT NULL,
     category          TEXT NOT NULL,
     occurrence_count  INTEGER NOT NULL,
@@ -144,7 +144,7 @@ class StyleDatabase:
             self._ensure_profile(conn, voice_id, display_name, now)
             if display_name:
                 conn.execute(
-                    "UPDATE voice_profiles SET display_name = ? WHERE voice_id = ? "
+                    "UPDATE dim_voice_style SET display_name = ? WHERE voice_id = ? "
                     "AND (display_name IS NULL OR display_name <> ?)",
                     (display_name, voice_id, display_name),
                 )
@@ -152,7 +152,7 @@ class StyleDatabase:
     @staticmethod
     def _ensure_profile(conn, voice_id, display_name, now):
         conn.execute(
-            "INSERT INTO voice_profiles (voice_id, display_name, created_at, updated_at) "
+            "INSERT INTO dim_voice_style (voice_id, display_name, created_at, updated_at) "
             "VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
             (voice_id, display_name, now, now),
         )
@@ -161,7 +161,7 @@ class StyleDatabase:
         """Return True/False if the user answered the consent question, or None if not asked yet."""
         with self._read() as conn:
             row = conn.execute(
-                "SELECT learning_enabled FROM voice_profiles WHERE voice_id = ?", (voice_id,)
+                "SELECT learning_enabled FROM dim_voice_style WHERE voice_id = ?", (voice_id,)
             ).fetchone()
         if row is None or row["learning_enabled"] is None:
             return None
@@ -172,7 +172,7 @@ class StyleDatabase:
         with self._write() as conn:
             self._ensure_profile(conn, voice_id, None, now)
             conn.execute(
-                "UPDATE voice_profiles SET learning_enabled = ?, updated_at = ? WHERE voice_id = ?",
+                "UPDATE dim_voice_style SET learning_enabled = ?, updated_at = ? WHERE voice_id = ?",
                 (1 if enabled else 0, now, voice_id),
             )
 
@@ -180,13 +180,13 @@ class StyleDatabase:
         """Return the latest committed profile for one voice, or None if it has none."""
         with self._read() as conn:
             profile = conn.execute(
-                "SELECT * FROM voice_profiles WHERE voice_id = ?", (voice_id,)
+                "SELECT * FROM dim_voice_style WHERE voice_id = ?", (voice_id,)
             ).fetchone()
             if profile is None:
                 return None
             patterns = conn.execute(
                 "SELECT category, expression, source, context_dependent, occurrence_count, sample_count "
-                "FROM speaking_patterns WHERE voice_id = ? ORDER BY occurrence_count DESC, expression",
+                "FROM fact_speaking_pattern WHERE voice_id = ? ORDER BY occurrence_count DESC, expression",
                 (voice_id,),
             ).fetchall()
         return {
@@ -203,7 +203,7 @@ class StyleDatabase:
         """Expressions the LLM discovered for this voice that the rules can now count directly."""
         with self._read() as conn:
             rows = conn.execute(
-                "SELECT category, expression FROM speaking_patterns "
+                "SELECT category, expression FROM fact_speaking_pattern "
                 "WHERE voice_id = ? AND source = 'llm' AND context_dependent = 0",
                 (voice_id,),
             ).fetchall()
@@ -213,9 +213,9 @@ class StyleDatabase:
         """Delete everything learned for one voice. Returns how many transcripts were removed."""
         with self._write() as conn:
             count = conn.execute(
-                "SELECT COUNT(*) AS n FROM transcripts WHERE voice_id = ?", (voice_id,)
+                "SELECT COUNT(*) AS n FROM fact_transcript WHERE voice_id = ?", (voice_id,)
             ).fetchone()["n"]
-            conn.execute("DELETE FROM voice_profiles WHERE voice_id = ?", (voice_id,))  # cascades
+            conn.execute("DELETE FROM dim_voice_style WHERE voice_id = ?", (voice_id,))  # cascades
         return count
 
     # --- transcripts and rule-based analysis ----------------------------------
@@ -226,7 +226,7 @@ class StyleDatabase:
         with self._write() as conn:
             self._ensure_profile(conn, voice_id, None, now)
             cur = conn.execute(
-                "INSERT INTO transcripts (transcript_id, voice_id, text, word_count, created_at) "
+                "INSERT INTO fact_transcript (transcript_id, voice_id, text, word_count, created_at) "
                 "VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
                 (transcript_id, voice_id, text, word_count, now),
             )
@@ -236,13 +236,13 @@ class StyleDatabase:
         """Mark a transcript as being analysed. Returns its row, or None if someone else has it or it's done."""
         with self._write() as conn:
             cur = conn.execute(
-                "UPDATE transcripts SET analysis_status = ?, rule_attempts = rule_attempts + 1 "
+                "UPDATE fact_transcript SET analysis_status = ?, rule_attempts = rule_attempts + 1 "
                 "WHERE transcript_id = ? AND analysis_status IN (?, ?) AND rule_attempts < ?",
                 (PROCESSING, transcript_id, PENDING, FAILED, max_attempts),
             )
             if cur.rowcount != 1:
                 return None
-            row = conn.execute("SELECT * FROM transcripts WHERE transcript_id = ?", (transcript_id,)).fetchone()
+            row = conn.execute("SELECT * FROM fact_transcript WHERE transcript_id = ?", (transcript_id,)).fetchone()
         return dict(row)
 
     def complete_rule_task(self, transcript_id, observations):
@@ -254,7 +254,7 @@ class StyleDatabase:
         now = utcnow()
         with self._write() as conn:
             row = conn.execute(
-                "SELECT voice_id, word_count, analysis_status FROM transcripts WHERE transcript_id = ?",
+                "SELECT voice_id, word_count, analysis_status FROM fact_transcript WHERE transcript_id = ?",
                 (transcript_id,),
             ).fetchone()
             if row is None or row["analysis_status"] != PROCESSING:
@@ -263,12 +263,12 @@ class StyleDatabase:
                 self._record_pattern(conn, transcript_id, row["voice_id"], category, expression,
                                      count, source, context_dependent, now)
             conn.execute(
-                "UPDATE voice_profiles SET total_words = total_words + ?, total_samples = total_samples + 1, "
+                "UPDATE dim_voice_style SET total_words = total_words + ?, total_samples = total_samples + 1, "
                 "updated_at = ? WHERE voice_id = ?",
                 (row["word_count"], now, row["voice_id"]),
             )
             conn.execute(
-                "UPDATE transcripts SET analysis_status = ?, processed_at = ? WHERE transcript_id = ?",
+                "UPDATE fact_transcript SET analysis_status = ?, processed_at = ? WHERE transcript_id = ?",
                 (COMPLETED, now, transcript_id),
             )
         return True
@@ -276,7 +276,7 @@ class StyleDatabase:
     def fail_rule_task(self, transcript_id):
         with self._write() as conn:
             conn.execute(
-                "UPDATE transcripts SET analysis_status = ? WHERE transcript_id = ? AND analysis_status = ?",
+                "UPDATE fact_transcript SET analysis_status = ? WHERE transcript_id = ? AND analysis_status = ?",
                 (FAILED, transcript_id, PROCESSING),
             )
 
@@ -291,13 +291,13 @@ class StyleDatabase:
         if count <= 0:
             return False
         existing = conn.execute(
-            "SELECT id, category FROM speaking_patterns WHERE voice_id = ? AND expression = ? ORDER BY id LIMIT 1",
+            "SELECT id, category FROM fact_speaking_pattern WHERE voice_id = ? AND expression = ? ORDER BY id LIMIT 1",
             (voice_id, expression),
         ).fetchone()
         category = existing["category"] if existing else category  # one category per expression
 
         cur = conn.execute(
-            "INSERT INTO transcript_patterns (transcript_id, expression, category, occurrence_count) "
+            "INSERT INTO fact_transcript_pattern (transcript_id, expression, category, occurrence_count) "
             "VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
             (transcript_id, expression, category, count),
         )
@@ -306,13 +306,13 @@ class StyleDatabase:
 
         if existing:
             conn.execute(
-                "UPDATE speaking_patterns SET occurrence_count = occurrence_count + ?, "
+                "UPDATE fact_speaking_pattern SET occurrence_count = occurrence_count + ?, "
                 "sample_count = sample_count + 1, last_seen_at = ? WHERE id = ?",
                 (count, now, existing["id"]),
             )
         else:
             conn.execute(
-                "INSERT INTO speaking_patterns (voice_id, category, expression, source, context_dependent, "
+                "INSERT INTO fact_speaking_pattern (voice_id, category, expression, source, context_dependent, "
                 "occurrence_count, sample_count, first_seen_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
                 (voice_id, category, expression, source, 1 if context_dependent else 0, count, now, now),
             )
@@ -324,7 +324,7 @@ class StyleDatabase:
         """Transcripts that passed rule analysis and still need LLM analysis, oldest first."""
         with self._read() as conn:
             rows = conn.execute(
-                "SELECT transcript_id, text FROM transcripts "
+                "SELECT transcript_id, text FROM fact_transcript "
                 "WHERE voice_id = ? AND analysis_status = ? AND llm_analysis_status IN (?, ?) AND llm_attempts < ? "
                 "ORDER BY created_at, transcript_id",
                 (voice_id, COMPLETED, PENDING, FAILED, max_attempts),
@@ -337,7 +337,7 @@ class StyleDatabase:
         with self._write() as conn:
             for tid in transcript_ids:
                 cur = conn.execute(
-                    "UPDATE transcripts SET llm_analysis_status = ?, llm_attempts = llm_attempts + 1 "
+                    "UPDATE fact_transcript SET llm_analysis_status = ?, llm_attempts = llm_attempts + 1 "
                     "WHERE transcript_id = ? AND llm_analysis_status IN (?, ?)",
                     (PROCESSING, tid, PENDING, FAILED),
                 )
@@ -356,7 +356,7 @@ class StyleDatabase:
             placeholders = ",".join("?" * len(transcript_ids))
             valid = {
                 r["transcript_id"] for r in conn.execute(
-                    f"SELECT transcript_id FROM transcripts WHERE voice_id = ? AND llm_analysis_status = ? "
+                    f"SELECT transcript_id FROM fact_transcript WHERE voice_id = ? AND llm_analysis_status = ? "
                     f"AND transcript_id IN ({placeholders})",
                     (voice_id, PROCESSING, *transcript_ids),
                 )
@@ -367,7 +367,7 @@ class StyleDatabase:
                                          "llm", context_dependent, now)
 
             profile = conn.execute(
-                "SELECT tone_profile, speaking_habits FROM voice_profiles WHERE voice_id = ?", (voice_id,)
+                "SELECT tone_profile, speaking_habits FROM dim_voice_style WHERE voice_id = ?", (voice_id,)
             ).fetchone()
             tone_profile = _load_json(profile["tone_profile"])
             habits = _load_json(profile["speaking_habits"])
@@ -376,11 +376,11 @@ class StyleDatabase:
             if notes:
                 habits["notes"] = list(notes)[:3]
             conn.execute(
-                "UPDATE voice_profiles SET tone_profile = ?, speaking_habits = ?, updated_at = ? WHERE voice_id = ?",
+                "UPDATE dim_voice_style SET tone_profile = ?, speaking_habits = ?, updated_at = ? WHERE voice_id = ?",
                 (json.dumps(tone_profile), json.dumps(habits), now, voice_id),
             )
             conn.executemany(
-                "UPDATE transcripts SET llm_analysis_status = ?, llm_processed_at = ? WHERE transcript_id = ?",
+                "UPDATE fact_transcript SET llm_analysis_status = ?, llm_processed_at = ? WHERE transcript_id = ?",
                 [(COMPLETED, now, tid) for tid in valid],
             )
         return len(valid)
@@ -388,7 +388,7 @@ class StyleDatabase:
     def fail_llm_batch(self, transcript_ids):
         with self._write() as conn:
             conn.executemany(
-                "UPDATE transcripts SET llm_analysis_status = ? WHERE transcript_id = ? AND llm_analysis_status = ?",
+                "UPDATE fact_transcript SET llm_analysis_status = ? WHERE transcript_id = ? AND llm_analysis_status = ?",
                 [(FAILED, tid, PROCESSING) for tid in transcript_ids],
             )
 
@@ -397,15 +397,15 @@ class StyleDatabase:
     def reset_interrupted(self):
         """Tasks left 'processing' when the app closed go back to 'pending' so they run again."""
         with self._write() as conn:
-            conn.execute("UPDATE transcripts SET analysis_status = ? WHERE analysis_status = ?",
+            conn.execute("UPDATE fact_transcript SET analysis_status = ? WHERE analysis_status = ?",
                          (PENDING, PROCESSING))
-            conn.execute("UPDATE transcripts SET llm_analysis_status = ? WHERE llm_analysis_status = ?",
+            conn.execute("UPDATE fact_transcript SET llm_analysis_status = ? WHERE llm_analysis_status = ?",
                          (PENDING, PROCESSING))
 
     def pending_rule_ids(self, max_attempts=config.STYLE_MAX_ATTEMPTS):
         with self._read() as conn:
             rows = conn.execute(
-                "SELECT transcript_id FROM transcripts WHERE analysis_status IN (?, ?) AND rule_attempts < ? "
+                "SELECT transcript_id FROM fact_transcript WHERE analysis_status IN (?, ?) AND rule_attempts < ? "
                 "ORDER BY created_at, transcript_id",
                 (PENDING, FAILED, max_attempts),
             ).fetchall()
@@ -414,7 +414,7 @@ class StyleDatabase:
     def voices_with_llm_backlog(self, batch_size, max_attempts=config.STYLE_MAX_ATTEMPTS):
         with self._read() as conn:
             rows = conn.execute(
-                "SELECT voice_id FROM transcripts WHERE analysis_status = ? AND llm_analysis_status IN (?, ?) "
+                "SELECT voice_id FROM fact_transcript WHERE analysis_status = ? AND llm_analysis_status IN (?, ?) "
                 "AND llm_attempts < ? GROUP BY voice_id HAVING COUNT(*) >= ?",
                 (COMPLETED, PENDING, FAILED, max_attempts, batch_size),
             ).fetchall()
@@ -422,7 +422,7 @@ class StyleDatabase:
 
 
 PG_SCHEMA = """
-CREATE TABLE IF NOT EXISTS voice_profiles (
+CREATE TABLE IF NOT EXISTS dim_voice_style (
     voice_id          TEXT PRIMARY KEY,
     display_name      TEXT,
     total_words       INTEGER NOT NULL DEFAULT 0,
@@ -434,9 +434,9 @@ CREATE TABLE IF NOT EXISTS voice_profiles (
     updated_at        TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS speaking_patterns (
+CREATE TABLE IF NOT EXISTS fact_speaking_pattern (
     id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    voice_id           TEXT NOT NULL REFERENCES voice_profiles(voice_id) ON DELETE CASCADE,
+    voice_id           TEXT NOT NULL REFERENCES dim_voice_style(voice_id) ON DELETE CASCADE,
     category           TEXT NOT NULL,
     expression         TEXT NOT NULL,
     source             TEXT NOT NULL DEFAULT 'rule',
@@ -447,11 +447,11 @@ CREATE TABLE IF NOT EXISTS speaking_patterns (
     last_seen_at       TIMESTAMPTZ NOT NULL,
     UNIQUE (voice_id, category, expression)
 );
-CREATE INDEX IF NOT EXISTS idx_patterns_voice_expression ON speaking_patterns(voice_id, expression);
+CREATE INDEX IF NOT EXISTS idx_speaking_pattern_voice_expression ON fact_speaking_pattern(voice_id, expression);
 
-CREATE TABLE IF NOT EXISTS transcripts (
+CREATE TABLE IF NOT EXISTS fact_transcript (
     transcript_id        TEXT PRIMARY KEY,
-    voice_id             TEXT NOT NULL REFERENCES voice_profiles(voice_id) ON DELETE CASCADE,
+    voice_id             TEXT NOT NULL REFERENCES dim_voice_style(voice_id) ON DELETE CASCADE,
     text                 TEXT NOT NULL,   -- what the user said in this turn
     word_count           INTEGER NOT NULL,
     analysis_status      TEXT NOT NULL DEFAULT 'pending',
@@ -462,16 +462,19 @@ CREATE TABLE IF NOT EXISTS transcripts (
     processed_at         TIMESTAMPTZ,
     llm_processed_at     TIMESTAMPTZ
 );
-CREATE INDEX IF NOT EXISTS idx_transcripts_status ON transcripts(voice_id, analysis_status, llm_analysis_status);
+CREATE INDEX IF NOT EXISTS idx_fact_transcript_status ON fact_transcript(voice_id, analysis_status, llm_analysis_status);
 
-CREATE TABLE IF NOT EXISTS transcript_patterns (
-    transcript_id     TEXT NOT NULL REFERENCES transcripts(transcript_id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS fact_transcript_pattern (
+    transcript_id     TEXT NOT NULL REFERENCES fact_transcript(transcript_id) ON DELETE CASCADE,
     expression        TEXT NOT NULL,
     category          TEXT NOT NULL,
     occurrence_count  INTEGER NOT NULL,
     PRIMARY KEY (transcript_id, expression)
 );
 """
+
+
+STYLE_TABLES = ("dim_voice_style", "fact_speaking_pattern", "fact_transcript", "fact_transcript_pattern")
 
 
 class _PgConnection:
@@ -490,14 +493,19 @@ class _PgConnection:
 
 
 class PostgresStyleDatabase(StyleDatabase):
-    """The same storage, kept in PostgreSQL (Supabase) in its own schema.
+    """The same storage, kept in PostgreSQL (Supabase).
 
-    Tables live in `schema` (default voice_style), so they never mix with the app's own
-    tables in `public`. A small pool keeps connections open, because opening a new TLS
-    connection to Supabase for every query would slow down each reply.
+    Tables go in `schema` (default public, next to the app's dim_*/fact_* tables).
+    Supabase publishes the public schema through its web API and gives the browser
+    roles (anon, authenticated) access to new tables by default, so every style table
+    gets Row Level Security with no policies and those grants revoked: only this
+    server-side connection can read what users said.
+
+    A small pool keeps connections open, because opening a new TLS connection to
+    Supabase for every query would slow down each reply.
     """
 
-    def __init__(self, conninfo, schema="voice_style", min_size=1, max_size=4):
+    def __init__(self, conninfo, schema="public", min_size=1, max_size=4):
         import psycopg
         from psycopg import sql
         from psycopg.rows import dict_row
@@ -515,6 +523,14 @@ class PostgresStyleDatabase(StyleDatabase):
                 for statement in PG_SCHEMA.split(";"):
                     if statement.strip():
                         conn.execute(statement)
+                browser_roles = [r[0] for r in conn.execute(
+                    "SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')")]
+                for table in STYLE_TABLES:
+                    name = sql.Identifier(schema, table)
+                    conn.execute(sql.SQL("ALTER TABLE {} ENABLE ROW LEVEL SECURITY").format(name))
+                    if browser_roles:
+                        conn.execute(sql.SQL("REVOKE ALL ON {} FROM {}").format(
+                            name, sql.SQL(", ").join(map(sql.Identifier, browser_roles))))
 
         def configure(conn):
             conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))

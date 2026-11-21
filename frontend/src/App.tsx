@@ -84,9 +84,20 @@ export default function App() {
     [handleApiError]
   );
   const saveAnswers = useCallback(
-    async (answers: Record<string, Answer>) => {
+    async (answers: Record<string, Answer>, spokenIds: string[]) => {
       await questionnaireApi.save(answers).catch(handleApiError);
+      // Spoken answers also teach the future self how the user talks. The answers are
+      // already saved at this point, so a problem here must not block the questionnaire.
+      if (spokenIds.length > 0) {
+        await questionnaireApi.saveVoiceSamples(spokenIds).catch((err) => {
+          console.warn("Could not queue spoken answers for style learning:", err);
+        });
+      }
     },
+    [handleApiError]
+  );
+  const transcribe = useCallback(
+    (audio: Blob) => questionnaireApi.transcribe(audio).catch(handleApiError),
     [handleApiError]
   );
 
@@ -129,6 +140,7 @@ export default function App() {
         loadQuestions={loadQuestions}
         loadAnswers={loadAnswers}
         saveAnswers={saveAnswers}
+        transcribe={transcribe}
         onBack={() => setPage("login")}
         onComplete={() => setPage("complete")}
       />
