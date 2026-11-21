@@ -1,6 +1,7 @@
 import uuid
 
-from sqlalchemy import Integer, ARRAY, ForeignKey
+from sqlalchemy import Integer, ForeignKey
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
@@ -36,7 +37,7 @@ class DimQs(Base):
 
     # questions
     questions: Mapped[list[int]] = mapped_column(
-        ARRAY(int),
+        ARRAY(Integer),
         nullable=False
     )
 

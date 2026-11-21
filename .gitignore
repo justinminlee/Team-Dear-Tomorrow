@@ -24,6 +24,13 @@ backend/uploads/
 # audio recordings (voice chatbot)
 *.wav
 
+# speaking style learning: personal transcripts, profiles and logs
+*.db-wal
+*.db-shm
+*.db-journal
+VOICE/transcripts/
+*.log
+
 # os / editor
 .DS_Store
 

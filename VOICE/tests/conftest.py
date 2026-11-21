@@ -9,6 +9,7 @@ os.environ.setdefault("TJ_VOICE_ID", "voice_tj")
 os.environ.setdefault("PETER_VOICE_ID", "voice_peter")
 os.environ.setdefault("INDIAN_VOICE_ID", "voice_indian")
 os.environ["ASSEMBLYAI_API_KEY"] = "test-key"
+os.environ["STYLE_DB"] = "sqlite"  # tests never touch Supabase
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -19,12 +20,31 @@ from style_analyzer import word_count  # noqa: E402
 from transcript import save_transcript  # noqa: E402
 
 
+# Set VOICE_TEST_PG_URL to a throwaway local PostgreSQL to run the same tests on the
+# Supabase backend code. Each test gets its own schema, dropped afterwards.
+PG_URL = os.getenv("VOICE_TEST_PG_URL")
+
+
 @pytest.fixture
 def db(tmp_path):
-    database = StyleDatabase(tmp_path / "test.db")
+    if PG_URL:
+        import uuid
+
+        import psycopg
+
+        from database import PostgresStyleDatabase
+
+        schema = "test_" + uuid.uuid4().hex[:12]
+        database = PostgresStyleDatabase(PG_URL, schema=schema, max_size=4)
+    else:
+        database = StyleDatabase(tmp_path / "test.db")
     set_database(database)
     yield database
     set_database(None)
+    database.close()
+    if PG_URL:
+        with psycopg.connect(PG_URL, autocommit=True) as conn:
+            conn.execute(f"DROP SCHEMA {schema} CASCADE")
 
 
 @pytest.fixture
@@ -36,8 +56,8 @@ def tdir(tmp_path):
 def add_transcript(db, tdir):
     """Save and register a transcript the same way the app does. Returns its id."""
     def _add(text, voice_id="voice_a"):
-        transcript_id, path = save_transcript(text, voice_id, tdir)
-        db.register_transcript(transcript_id, voice_id, path, word_count(text))
+        transcript_id, _ = save_transcript(text, voice_id, tdir)
+        db.register_transcript(transcript_id, voice_id, text, word_count(text))
         return transcript_id
     return _add
 

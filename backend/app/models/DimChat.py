@@ -39,3 +39,10 @@ class DimChat(Base):
         Integer,
         nullable=False
     )
+
+    # Foreign Key: the cloned voice used in this chat (optional)
+    voice_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("public.dim_voice.voice_id", ondelete="SET NULL"),
+        nullable=True
+    )

@@ -2,7 +2,7 @@
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import URL, create_engine
 from sqlalchemy.orm import sessionmaker
 
 # .env 파일 로드
@@ -15,12 +15,25 @@ HOST = os.getenv("host")
 PORT = os.getenv("port")
 DBNAME = os.getenv("dbname")
 
-# 환경변수에서 DB 연결 정보 가져오기
-DATABASE_URL = f"postgresql+psycopg2://{USER}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}?sslmode=require"
-#os.getenv("DATABASE_URL")
+# 필수 접속 정보가 .env에 있는지 확인
+missing = [name for name, value in
+           {"user": USER, "password": PASSWORD, "host": HOST, "port": PORT, "dbname": DBNAME}.items()
+           if not value]
+if missing:
+    raise ValueError(f"Missing DB settings in .env file: {', '.join(missing)}")
 
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set in .env file")
+# 환경변수에서 DB 연결 정보 가져오기
+# requirements.txt에 있는 psycopg 3 드라이버를 사용 (postgresql+psycopg)
+# URL.create는 비밀번호에 @, : 같은 특수문자가 있어도 안전하게 처리
+DATABASE_URL = URL.create(
+    drivername="postgresql+psycopg",
+    username=USER,
+    password=PASSWORD,
+    host=HOST,
+    port=int(PORT),
+    database=DBNAME,
+    query={"sslmode": "require"},
+)
 
 # PostgreSQL 연결 엔진 생성
 engine = create_engine(

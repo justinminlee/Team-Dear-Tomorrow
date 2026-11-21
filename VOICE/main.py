@@ -15,7 +15,7 @@ import sounddevice as sd
 
 import config
 from config import API_KEY, MODEL, VOICES
-from database import get_database
+from database import close_database, get_database
 from prompts import BASE_SYSTEM_PROMPT, build_system_prompt
 from style_worker import create_style_service
 from transcript import delete_voice_transcripts
@@ -152,29 +152,43 @@ def speak(text, voice_id):
 
 # --- Speaking style learning setup ------------------------------------------------
 
-def ask_learning_consent(db, voice_id):
-    """Ask once per voice whether we may learn from their speech. The answer is remembered."""
+YES = {"y", "yes"}
+NO = {"n", "no"}
+
+
+def ask_learning_consent(db, voice_id, ask_again=False):
+    """Ask once per voice whether we may learn from their speech. The answer is remembered.
+
+    ask_again=True (the --learn option) asks again even if the user said no before.
+    """
     consent = db.get_learning_consent(voice_id)
-    if consent is not None:
+    if consent is not None and not ask_again:
+        if not consent:
+            print("(Speaking style learning is OFF for this voice. To turn it on: uv run main.py --learn)")
         return consent
 
+    where = "your Supabase database" if config.STYLE_DB == "supabase" else "a database on this computer"
     print("\nDear Tomorrow can learn how you talk (filler words, slang, favourite phrases)")
-    print("so your future self sounds more like you. Your words are saved as text files")
-    print("on this computer only. You can delete them anytime with: uv run main.py --reset-style")
-    answer = input("Allow speaking style learning for this voice? (y/N): ").strip().lower()
-    consent = answer in {"y", "yes"}
+    print("so your future self sounds more like you. Your words are saved as text files on this")
+    print(f"computer, and the habits found in them are saved to {where}.")
+    print("You can delete them anytime with: uv run main.py --reset-style")
+    answer = ""
+    while answer not in YES | NO:  # a blank Enter or a typo must not silently mean "no"
+        answer = input("Allow speaking style learning for this voice? (y/n): ").strip().lower()
+    consent = answer in YES
     db.set_learning_consent(voice_id, consent)
+    print("(Learning is ON.)" if consent else "(Learning is OFF. To turn it on later: uv run main.py --learn)")
     return consent
 
 
-def start_style_learning(voice_id, no_learning):
+def start_style_learning(voice_id, no_learning, ask_again=False):
     """Return (style_service, learning_on). If anything fails, the chat just runs without learning."""
     if not config.STYLE_LEARNING_ENABLED or no_learning:
         return None, False
     try:
         db = get_database()
         db.ensure_profile(voice_id, voice_name(voice_id))
-        learning = ask_learning_consent(db, voice_id)
+        learning = ask_learning_consent(db, voice_id, ask_again)
         service = create_style_service(db, chat)
         service.start()  # also resumes analysis left unfinished last time
         return service, learning
@@ -203,6 +217,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Dear Tomorrow voice chat")
     parser.add_argument("--no-learning", action="store_true",
                         help="don't save or analyse anything this session")
+    parser.add_argument("--learn", action="store_true",
+                        help="ask the learning question again (e.g. to turn learning back on)")
     parser.add_argument("--reset-style", action="store_true",
                         help="delete the learned speaking style and transcripts for one voice")
     return parser.parse_args()
@@ -228,7 +244,7 @@ def main():
 
     # Select a cloned voice before starting the conversation.
     voice_id = select_voice()
-    style_service, learning = start_style_learning(voice_id, args.no_learning)
+    style_service, learning = start_style_learning(voice_id, args.no_learning, args.learn)
 
     print("Dear Tomorrow is ready. Say 'goodbye' to exit.")
 
@@ -264,6 +280,7 @@ def main():
             if style_service.worker.pending_count():
                 print("(Saving what I learned about how you talk...)")
             style_service.shutdown()
+        close_database()
 
 
 if __name__ == "__main__":
