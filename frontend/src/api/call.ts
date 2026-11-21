@@ -4,7 +4,7 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 export type SpokenReply = { text: string; audio: string; audio_type: string };
 
 export const callApi = {
-  /** Cloned voices the future self can speak with, e.g. ["TJ", "Peter", "Indian"]. */
+  /** Cloned voices the future self can speak with, e.g. ["TJ", "Peter", "Lucas"]. */
   voices: () => apiRequest<{ voices: string[]; default: string | null }>("/call/voices"),
 
   /** The future self's opening line, as text and base64 MP3, in the chosen voice. */

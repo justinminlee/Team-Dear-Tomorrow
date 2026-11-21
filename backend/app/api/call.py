@@ -1,6 +1,6 @@
 """Future-self phone call.
 
-GET  /call/voices -> the cloned voices the future self can speak with (TJ, Peter, Indian)
+GET  /call/voices -> the cloned voices the future self can speak with (TJ, Peter, Lucas)
 POST /call/start  -> the future self's opening line (text + spoken MP3)
 POST /call/turn   -> one exchange: the user's recorded audio (WAV) in, the reply (text + MP3) out
 

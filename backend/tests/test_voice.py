@@ -242,14 +242,14 @@ def voices(monkeypatch):
 
 
 def test_voice_list(client, voices):
-    assert client.get("/call/voices").json() == {"voices": ["TJ", "Peter", "Indian"], "default": "TJ"}
+    assert client.get("/call/voices").json() == {"voices": ["TJ", "Peter", "Lucas"], "default": "TJ"}
 
 
 def test_no_choice_uses_a_cloned_voice_not_the_stock_one(voices, monkeypatch):
     assert voice_ai.voice_id_for(None) == "id-TJ"
     monkeypatch.setenv("ASSEMBLYAI_VOICE_ID", "id-override")
     assert voice_ai.voice_id_for(None) == "id-override"
-    assert voice_ai.voice_id_for("Indian") == "id-Indian"
+    assert voice_ai.voice_id_for("Lucas") == "id-Lucas"
 
 
 def test_chosen_voice_is_used_for_start_and_turn(client, call_fakes, voices, monkeypatch):

@@ -5,7 +5,7 @@ but works on in-memory audio so it can run behind a web API.
 
 Settings (backend/.env):
     ASSEMBLYAI_API_KEY    required
-    TJ_VOICE_ID, PETER_VOICE_ID, INDIAN_VOICE_ID
+    TJ_VOICE_ID, PETER_VOICE_ID, LUCAS_VOICE_ID
                           cloned voices the user can choose for the call (see VOICE_OPTIONS)
     ASSEMBLYAI_VOICE_ID   optional: voice used when none is chosen (else the first cloned
                           voice above; AssemblyAI's aai-jane only if none are set)
@@ -131,8 +131,8 @@ def clean_for_speech(text: str) -> str:
 # ---------- Text to speech ----------
 
 # Cloned voices the user can pick for the call: display name -> env var holding the
-# AssemblyAI voice id (same voices and env vars as VOICE/config.py).
-VOICE_OPTIONS = {"TJ": "TJ_VOICE_ID", "Peter": "PETER_VOICE_ID", "Indian": "INDIAN_VOICE_ID"}
+# AssemblyAI voice id. TJ and Peter are the same voices as VOICE/config.py.
+VOICE_OPTIONS = {"TJ": "TJ_VOICE_ID", "Peter": "PETER_VOICE_ID", "Lucas": "LUCAS_VOICE_ID"}
 
 
 class UnknownVoice(ValueError):

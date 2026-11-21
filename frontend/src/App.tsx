@@ -45,7 +45,7 @@ export default function App() {
   useEffect(() => () => window.clearTimeout(connectTimer.current), []);
 
   // Start from a click: the browser only allows call audio after a user gesture.
-  // Cloned voices the future self can speak with (TJ, Peter, Indian), chosen before the call.
+  // Cloned voices the future self can speak with (TJ, Peter, Lucas), chosen before the call.
   const [voices, setVoices] = useState<string[]>([]);
   const [voice, setVoice] = useState("");
   useEffect(() => {
