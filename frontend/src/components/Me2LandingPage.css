@@ -1,0 +1,191 @@
+/* =========================================
+   Me² — LANDING PAGE
+   Every selector is scoped under .me2-landing so
+   generic names (.login, .hero, .logo…) can't leak
+   into other pages.
+========================================= */
+
+.me2-landing {
+  color-scheme: dark;
+  --bg: #111214;
+  --surface: #191b1e;
+  --text: #f3efe8;
+  --muted: #a8a8aa;
+  --accent: #d9c8ae;
+  --line: #383a3d;
+
+  min-height: 100svh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  overflow-x: hidden;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: radial-gradient(ellipse 50% 45% at 50% 46%, #1b1b1d 0%, #111214 75%);
+}
+
+.me2-landing *,
+.me2-landing *::before,
+.me2-landing *::after {
+  box-sizing: border-box;
+}
+
+.me2-landing .site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 26px clamp(22px, 5vw, 72px);
+  position: relative;
+  z-index: 3;
+}
+
+.me2-landing .logo {
+  font-size: 26px;
+  font-weight: 740;
+  letter-spacing: -1.7px;
+}
+
+.me2-landing .header-note {
+  font-size: 11px;
+  letter-spacing: 2.3px;
+  color: #9d9992;
+}
+
+.me2-landing .hero {
+  flex: 1;
+  min-height: 610px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  padding: 35px 20px 50px;
+  overflow: hidden;
+}
+
+.me2-landing .copy {
+  z-index: 2;
+  text-align: center;
+  pointer-events: none;
+}
+
+.me2-landing .eyebrow {
+  color: #b7a997;
+  font-size: 11px;
+  letter-spacing: 3px;
+  font-weight: 650;
+  text-transform: uppercase;
+  margin: 0 0 20px;
+}
+
+.me2-landing .copy h1 {
+  font-size: clamp(35px, 5.5vw, 68px);
+  font-weight: 560;
+  letter-spacing: -0.065em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.me2-landing .copy h1 em {
+  font-style: normal;
+  color: #c9c8c5;
+}
+
+.me2-landing .tagline {
+  color: var(--muted);
+  font-size: clamp(13px, 1.6vw, 16px);
+  line-height: 1.7;
+  margin: 21px 0 0;
+}
+
+.me2-landing .visual {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  height: min(62vh, 520px);
+  width: min(95vw, 890px);
+  pointer-events: none;
+  z-index: 1;
+  -webkit-mask-image: radial-gradient(ellipse 64% 64% at center, #000 65%, transparent 100%);
+  mask-image: radial-gradient(ellipse 64% 64% at center, #000 65%, transparent 100%);
+}
+
+.me2-landing .me2-particle-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.me2-landing .actions {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 17px;
+  margin-top: 240px;
+}
+
+.me2-landing .login {
+  border: 1px solid #e7e1d8;
+  color: #181a1c;
+  background: #efeae2;
+  padding: 16px 51px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.me2-landing .login:hover {
+  transform: translateY(-2px);
+  background: #fff;
+}
+
+.me2-landing .login:focus-visible {
+  outline: 3px solid #b9a991;
+  outline-offset: 4px;
+}
+
+.me2-landing .micro {
+  font-size: 12px;
+  color: #98989a;
+  letter-spacing: 0.2px;
+  margin: 0;
+}
+
+.me2-landing .bottom {
+  color: #686b6d;
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 clamp(22px, 5vw, 72px) 24px;
+  gap: 16px;
+}
+
+.me2-landing .bottom span:last-child {
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .me2-landing .site-header { padding: 22px; }
+  .me2-landing .header-note { font-size: 9px; letter-spacing: 1.2px; }
+  .me2-landing .hero { min-height: 610px; padding-top: 48px; padding-bottom: 36px; }
+  .me2-landing .copy h1 { font-size: clamp(34px, 9.2vw, 49px); }
+  .me2-landing .copy h1 em { display: block; }
+  .me2-landing .tagline { max-width: 290px; margin: 15px auto 0; }
+  .me2-landing .visual { width: 130vw; height: 420px; top: 44%; }
+  .me2-landing .actions { margin-top: 240px; }
+  .me2-landing .bottom { padding: 0 22px 20px; font-size: 10px; }
+  .me2-landing .bottom span:last-child { max-width: 150px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .me2-landing .login { transition: none; }
+}

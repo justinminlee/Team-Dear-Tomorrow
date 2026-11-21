@@ -1,6 +1,6 @@
 
 import { useState, type SubmitEvent } from "react";
-import "./LoginPage.css";
+import AuthLayout from "./AuthLayout";
 
 type LoginPageProps = {
   onLogin: (
@@ -8,11 +8,13 @@ type LoginPageProps = {
     password: string
   ) => Promise<void>;
   onSignUp: () => void;
+  onHome?: () => void;
 };
 
 export default function LoginPage({
   onLogin,
   onSignUp,
+  onHome,
 }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,22 +44,12 @@ export default function LoginPage({
   }
 
   return (
-    <main className="dt-login">
-      {/* Background glow */}
-      <div className="dt-login-glow dt-glow-top" />
-      <div className="dt-login-glow dt-glow-bottom" />
-
-      <div className="dt-login-content">
-        {/* Brand */}
-        <div className="dt-login-brand">
-          dear <span>tomorrow.</span>
-        </div>
-
-
+    <AuthLayout onHome={onHome}>
         {/* Heading */}
         <header className="dt-login-header">
-          <h1>Welcome Back</h1>
-          <p>Continue your call to tomorrow.</p>
+          <p className="dt-login-eyebrow">Welcome back</p>
+          <h1>Log in</h1>
+          <p className="dt-login-sub">Continue your conversation with tomorrow.</p>
         </header>
 
         {/* Login form */}
@@ -146,7 +138,7 @@ export default function LoginPage({
 
         {/* Sign up link */}
         <p className="dt-login-signup">
-          New to Dear Tomorrow?{" "}
+          New to Me²?{" "}
           <button
             type="button"
             onClick={onSignUp}
@@ -154,7 +146,6 @@ export default function LoginPage({
             Create an account
           </button>
         </p>
-      </div>
-    </main>
+    </AuthLayout>
   );
 }

@@ -78,7 +78,7 @@ def main():
             if missing or missing_cols:
                 raise RuntimeError("Existing tables differ from these models; use Alembic migrations.")
             seed_data(conn)
-        print("Finished creating/checking 15 tables and seeding 20 questions.")
+        print("Finished creating/checking 15 tables and seeding questions.")
         print("RLS, grants, and schema migrations must be managed separately.")
     except (SQLAlchemyError, RuntimeError) as exc:
         print("Database setup failed:", exc, file=sys.stderr)
