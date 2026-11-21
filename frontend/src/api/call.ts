@@ -1,0 +1,28 @@
+import { API_URL, ApiError, apiRequest } from "./auth";
+
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+export type SpokenReply = { text: string; audio: string; audio_type: string };
+
+export const callApi = {
+  /** The future self's opening line, as text and base64 MP3. */
+  start: () => apiRequest<{ reply: SpokenReply }>("/call/start", { method: "POST" }),
+
+  /** One exchange: the user's WAV recording in, the transcript and reply out. */
+  async turn(wav: Blob, history: ChatMessage[]): Promise<{ heard: string; reply: SpokenReply | null }> {
+    const form = new FormData();
+    form.append("audio", wav, "turn.wav");
+    form.append("history", JSON.stringify(history));
+    let response: Response;
+    try {
+      // No Content-Type header: the browser sets the multipart boundary itself.
+      response = await fetch(`${API_URL}/call/turn`, { method: "POST", body: form, credentials: "include" });
+    } catch {
+      throw new ApiError("Can't reach the server.", 0);
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new ApiError(typeof data.detail === "string" ? data.detail : "Request failed", response.status);
+    }
+    return data;
+  },
+};

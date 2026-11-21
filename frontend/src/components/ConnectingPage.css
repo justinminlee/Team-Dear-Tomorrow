@@ -1,0 +1,33 @@
+/* Me² AI — Connecting Page · Quiet Ivory edition. Scoped selectors to avoid affecting other app screens. */
+.me2-connecting-page{--bg:#111214;--ivory:#F3EFE8;--amber:#E1D9CD;--muted:#A9AAAD;box-sizing:border-box;min-height:100vh;min-height:100svh;display:flex;flex-direction:column;padding:clamp(20px,3vw,42px);background:radial-gradient(ellipse at 50% 42%,#202124 0%,#17181B 40%,var(--bg) 75%);color:var(--ivory);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.me2-connecting-page *{box-sizing:border-box}
+.me2-connecting-header{display:flex;align-items:center;justify-content:space-between}
+.me2-connecting-logo{font-weight:750;font-size:25px;letter-spacing:-1px}
+.me2-connecting-eyebrow{color:var(--amber);font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+.me2-connecting-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:22px;padding:52px 0}
+.me2-connecting-dots{display:flex;align-items:center;justify-content:center;gap:17px;height:78px;margin-bottom:14px}
+.me2-connecting-dot{width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 28% 24%,#F6F1E9,var(--amber) 65%,#B8B0A8);box-shadow:0 2px 10px #E1D9CD12;animation:me2-connecting-bounce 1.8s ease-in-out infinite}
+.me2-connecting-dot:nth-child(2){animation-delay:.2s}
+.me2-connecting-dot:nth-child(3){animation-delay:.4s}
+@keyframes me2-connecting-bounce{0%,22%,58%,100%{transform:translateY(0)}38%{transform:translateY(-28px)}}
+.me2-connecting-main h1{font-size:clamp(27px,4.5vw,52px);font-weight:550;letter-spacing:-.04em;line-height:1.13;margin:0;max-width:830px}
+.me2-connecting-main p{margin:0}
+.me2-connecting-description{color:var(--muted);font-size:clamp(14px,1.7vw,17px);line-height:1.6}
+.me2-connecting-status{color:var(--amber);font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+.me2-connecting-sound{display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:12px}
+.me2-connecting-sound-button{background:transparent;color:var(--ivory);border:1px solid #4A4B50;border-radius:100px;padding:13px 22px;cursor:pointer;font:600 13px Inter,ui-sans-serif,sans-serif;min-width:188px;letter-spacing:.06em;transition:background .2s,border-color .2s}
+.me2-connecting-sound-button:hover:not(:disabled){background:#282A2D;border-color:#AAA7A2}
+.me2-connecting-sound-button:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+.me2-connecting-sound-button:disabled{opacity:.55;cursor:not-allowed}
+.me2-connecting-sound p{font-size:12px;color:var(--muted);margin:0;text-align:center}
+.me2-connecting-footer{font-size:11px;color:#86878A;text-align:center}
+@media(max-width:600px){.me2-connecting-page{padding:22px 20px}.me2-connecting-eyebrow{font-size:9px;letter-spacing:.09em}.me2-connecting-main{gap:16px}.me2-connecting-dots{margin-bottom:8px}.me2-connecting-sound{padding-bottom:20px}.me2-connecting-main h1{max-width:320px}}
+@media(prefers-reduced-motion:reduce){.me2-connecting-dot{animation:none}}
+
+/* Polished, low-glare focus treatment and calmer motion. */
+.me2-connecting-page {--border:#35363A;--panel:#1B1C20}
+.me2-connecting-eyebrow,.me2-connecting-status {font-weight:550}
+.me2-connecting-dot {width:18px;height:18px;animation-duration:1.85s;box-shadow:0 2px 9px #E1D9CD16}
+.me2-connecting-sound-button {border-color:#55565B;background:#202125;min-width:172px}
+.me2-connecting-sound-button:hover:not(:disabled) {background:#2B2C30;border-color:#BEB8AE}
+@keyframes me2-connecting-bounce {0%,22%,58%,100%{transform:translateY(0)}38%{transform:translateY(-22px)}}

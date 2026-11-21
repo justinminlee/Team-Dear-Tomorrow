@@ -13,3 +13,4 @@ pytest-asyncio
 psycopg[binary]
 pwdlib[argon2]
 email-validator
+assemblyai>=1.10.11

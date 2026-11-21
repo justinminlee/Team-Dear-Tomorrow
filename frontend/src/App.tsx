@@ -1,10 +1,15 @@
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import Me2LandingPage from "./components/Me2LandingPage";
 import LoginPage from "./components/LoginPage";
 import SignUpPage from "./components/SignUpPage";
 import QuestionnairePage, { type Answer } from "./components/QuestionnairePage";
+import ConnectingPage from "./components/ConnectingPage";
+import FutureCallPage from "./components/FutureCallPage";
+import CallEndPage from "./components/CallEndPage";
+import { useFutureCall } from "./call/useFutureCall";
+import type { CallSnapshot } from "./call/futureCall";
 import { ApiError, authApi } from "./api/auth";
 import { questionnaireApi } from "./api/questionnaire";
 
@@ -13,10 +18,55 @@ type Page =
   | "login"
   | "signup"
   | "questionnaire"
-  | "complete";
+  | "complete"
+  | "connecting"
+  | "call"
+  | "ended";
+
+/** The line under the particle ring during a call. */
+function callCaption({ phase, caption, muted }: CallSnapshot): string {
+  if (phase === "speaking") return caption;
+  if (muted) return "You're muted. Unmute to talk to your future self.";
+  if (phase === "thinking") return "…";
+  if (phase === "hearing") return "Listening…";
+  if (phase === "listening") return caption || "Your turn. Speak whenever you're ready.";
+  return "";
+}
+
+// How long "Your future self is calling." shows before the call screen opens.
+const CONNECTED_PAUSE_MS = 1200;
 
 export default function App() {
   const [page, setPage] = useState<Page>("landing");
+  const [callSeconds, setCallSeconds] = useState(0);
+  const call = useFutureCall(useCallback(() => setPage("login"), []));
+  const connectTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(connectTimer.current), []);
+
+  // Start from a click: the browser only allows call audio after a user gesture.
+  const startCall = () => {
+    void call.start();
+    setPage("connecting");
+  };
+
+  const { begin } = call;
+  const handleConnected = useCallback(() => {
+    connectTimer.current = window.setTimeout(() => {
+      setPage("call");
+      begin();
+    }, CONNECTED_PAUSE_MS);
+  }, [begin]);
+
+  const leaveConnecting = () => {
+    window.clearTimeout(connectTimer.current);
+    call.end();
+    setPage("complete");
+  };
+
+  const hangUp = () => {
+    setCallSeconds(call.end());
+    setPage("ended");
+  };
 
   // If the session has expired, send the user back to log in.
   const handleApiError = useCallback((err: unknown): never => {
@@ -85,6 +135,38 @@ export default function App() {
     );
   }
 
+  // 6. CONNECTING TO THE FUTURE SELF
+  if (page === "connecting") {
+    const { phase, error } = call.snapshot;
+    return (
+      <ConnectingPage
+        connected={phase === "ready"}
+        onConnected={handleConnected}
+        error={phase === "failed" ? error : undefined}
+        onCancel={leaveConnecting}
+      />
+    );
+  }
+
+  // 7. IN CALL
+  if (page === "call") {
+    return (
+      <FutureCallPage
+        connected={call.snapshot.phase !== "ended"}
+        aiAudioLevel={call.level}
+        muted={call.snapshot.muted}
+        onToggleMute={() => call.setMuted(!call.snapshot.muted)}
+        onEndCall={hangUp}
+        caption={callCaption(call.snapshot)}
+      />
+    );
+  }
+
+  // 8. CALL ENDED
+  if (page === "ended") {
+    return <CallEndPage onBackHome={() => setPage("landing")} durationSeconds={callSeconds} />;
+  }
+
   // 5. COMPLETION SCREEN
   return (
     <main
@@ -136,11 +218,11 @@ export default function App() {
           margin: "18px 0 36px",
         }}
       >
-        Your answers have been saved. You can come back and update them anytime.
+        Your answers have been saved. Your future self is ready to talk.
       </p>
 
       <button
-        onClick={() => setPage("landing")}
+        onClick={startCall}
         style={{
           background: "#efeae2",
           color: "#181a1c",
@@ -152,7 +234,27 @@ export default function App() {
           cursor: "pointer",
         }}
       >
-        Back to home
+        Call your future self <span aria-hidden="true">↗</span>
+      </button>
+
+      <p style={{ color: "#7e7f81", fontSize: "12px", margin: "16px 0 0" }}>
+        You'll need your microphone. Best with headphones.
+      </p>
+
+      <button
+        onClick={() => setPage("questionnaire")}
+        style={{
+          background: "transparent",
+          color: "#a8a8aa",
+          border: 0,
+          marginTop: "28px",
+          fontSize: "13px",
+          textDecoration: "underline",
+          textUnderlineOffset: "3px",
+          cursor: "pointer",
+        }}
+      >
+        Review my answers
       </button>
     </main>
   );

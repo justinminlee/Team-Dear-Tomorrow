@@ -37,6 +37,12 @@
       }
     },
     {
+      "source": "/call/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
       "source": "/health",
       "destination": {
         "service": "backend"
