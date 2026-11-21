@@ -1,4 +1,3 @@
-
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
@@ -10,20 +9,9 @@
     "frontend": {
       "root": "frontend",
       "framework": "vite"
-    },
-    "voice": {
-      "root": "VOICE",
-      "runtime": "python",
-      "entrypoint": "main:app"
     }
   },
   "rewrites": [
-    {
-      "source": "/api/voice/(.*)",
-      "destination": {
-        "service": "voice"
-      }
-    },
     {
       "source": "/api/(.*)",
       "destination": {
@@ -32,6 +20,24 @@
     },
     {
       "source": "/auth/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/questionnaire",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/questionnaire/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/health",
       "destination": {
         "service": "backend"
       }

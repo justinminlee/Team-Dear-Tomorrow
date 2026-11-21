@@ -1,4 +1,8 @@
-export const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+// Local dev: backend on localhost:8000. Production (Vercel): same domain as the
+// site — vercel.json rewrites /auth, /questionnaire, /api to the backend.
+export const API_URL = (
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:8000" : "")
+).replace(/\/$/, "");
 
 export type AuthUser = { id: string; email: string | null; username: string };
 
