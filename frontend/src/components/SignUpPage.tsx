@@ -1,16 +1,18 @@
 
 import { useState, type FormEvent } from "react";
-import "./LoginPage.css";
+import AuthLayout from "./AuthLayout";
 import "./SignUpPage.css";
 
 type SignUpPageProps = {
   onLogin: () => void;
   onSuccess: () => void;
+  onHome?: () => void;
 };
 
 export default function SignUpPage({
   onLogin,
   onSuccess,
+  onHome,
 }: SignUpPageProps) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -103,18 +105,11 @@ export default function SignUpPage({
   }
 
   return (
-    <main className="dt-login">
-      <div className="dt-login-glow dt-glow-top" />
-      <div className="dt-login-glow dt-glow-bottom" />
-
-      <div className="dt-login-content">
-        <div className="dt-login-brand">
-          dear <span>tomorrow.</span>
-        </div>
-
+    <AuthLayout onHome={onHome}>
         <header className="dt-login-header">
+          <p className="dt-login-eyebrow">Begin here</p>
           <h1>Create your account</h1>
-          <p>Your future is just one call away.</p>
+          <p className="dt-login-sub">Your future is just one conversation away.</p>
         </header>
 
         <form
@@ -247,8 +242,7 @@ export default function SignUpPage({
             Log in
           </button>
         </p>
-      </div>
-    </main>
+    </AuthLayout>
   );
 }
 

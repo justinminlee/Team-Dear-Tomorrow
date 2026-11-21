@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #a99682;
+  color: #7e7f81;
   font-size: 12px;
   transition: color 0.2s ease;
 }
@@ -20,7 +20,7 @@
 }
 
 .dt-password-rule.valid {
-  color: #f5bf64;
+  color: #d9c8ae;
 }
 
 @media (max-width: 420px) {

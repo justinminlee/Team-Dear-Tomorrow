@@ -133,7 +133,7 @@ export default function QuestionnairePage({ endpoint = "/api/questions", loadQue
     </div>;
   };
   return <div className="me2-survey"><div className="me2-shell">
-    <header className="me2-header"><div className="me2-logo">Me<sup>2</sup></div><div className="me2-top-right"><span className="me2-led"/>BEFORE THE CALL</div></header>
+    <header className="me2-header"><div className="me2-logo">Me²</div><div className="me2-top-right"><span className="me2-led"/>BEFORE THE CALL</div></header>
     <div className="me2-layout"><aside className="me2-aside"><div className="me2-eyebrow">YOUR CONNECTION</div><h2>A little about you, before we connect.</h2><p>Every future begins with who you are today.</p><nav className="me2-step-list" aria-label="Questionnaire sections">
       {sections.map((s,i)=><button key={s.id} type="button" className={`me2-step ${safePage===i?"active":""} ${safePage>i?"done":""}`} onClick={()=>{setPage(i);setSubmissionError("");}}><span className="me2-number">{safePage>i?"✓":String(i+1).padStart(2,"0")}</span><span>{s.title}</span></button>)}
       {sections.length>0 && <button type="button" className={`me2-step ${boundaries?"active":""}`} onClick={()=>{setPage(sections.length);setSubmissionError("");}}><span className="me2-number">{String(totalSteps).padStart(2,"0")}</span><span>Conversation Boundaries</span></button>}
