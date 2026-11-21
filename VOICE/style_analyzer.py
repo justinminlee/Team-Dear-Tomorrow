@@ -21,7 +21,7 @@ DEFAULT_VOCABULARY = {
     "filler_words": ["um", "uh", "erm", "er", "hmm", "ah", "eh", "mm"],
     "slang": [
         "bro", "mate", "dude", "nah", "yeah", "yep", "gonna", "wanna", "kinda", "sorta",
-        "gotta", "dunno", "lemme", "gimme", "ain't", "y'all", "cuz", "lol",
+        "gotta", "dunno", "lemme", "gimme", "ain't", "y'all", "cuz", "lol", "nah"
     ],
     "profanity": [
         "fuck", "fucking", "fucked", "shit", "shitty", "damn", "bloody", "bullshit",

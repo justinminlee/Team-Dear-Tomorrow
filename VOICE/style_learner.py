@@ -3,7 +3,6 @@ import logging
 
 import config
 import style_analyzer
-from transcript import read_transcript
 
 log = logging.getLogger(__name__)
 
@@ -22,12 +21,10 @@ class StyleLearner:
     new transcript can never overwrite what was learned before.
     """
 
-    def __init__(self, db, chat_fn, transcripts_dir=config.TRANSCRIPTS_DIR,
-                 batch_size=config.LLM_ANALYSIS_BATCH_SIZE,
+    def __init__(self, db, chat_fn, batch_size=config.LLM_ANALYSIS_BATCH_SIZE,
                  max_attempts=config.STYLE_MAX_ATTEMPTS, vocabulary=None):
         self.db = db
         self.chat_fn = chat_fn
-        self.transcripts_dir = transcripts_dir
         self.batch_size = max(1, batch_size)
         self.max_attempts = max_attempts
         self.vocabulary = vocabulary or style_analyzer.load_vocabulary()
@@ -40,7 +37,7 @@ class StyleLearner:
 
         voice_id = row["voice_id"]
         try:
-            text = read_transcript(row["file_path"], self.transcripts_dir, transcript_id)
+            text = row["text"]
             learned = self.db.learned_vocabulary(voice_id)
             found = style_analyzer.extract_rule_patterns(text, self.vocabulary, learned)
             observations = [
@@ -75,21 +72,11 @@ class StyleLearner:
         if not rows:
             return False
 
-        labelled, label_to_id, unreadable = [], {}, []
+        labelled, label_to_id = [], {}
         for i, row in enumerate(rows, start=1):
-            try:
-                text = read_transcript(row["file_path"], self.transcripts_dir, row["transcript_id"])
-            except (OSError, ValueError, LookupError):
-                unreadable.append(row["transcript_id"])
-                continue
             label = f"T{i}"
-            labelled.append((label, text))
+            labelled.append((label, row["text"]))
             label_to_id[label] = row["transcript_id"]
-        if unreadable:
-            log.warning("Skipping %d unreadable transcripts in LLM batch", len(unreadable))
-            self.db.give_up_llm(unreadable)
-        if not labelled:
-            return False
 
         try:
             result = style_analyzer.analyze_with_llm(labelled, self.chat_fn, self.vocabulary)

@@ -80,7 +80,7 @@ def test_think_uses_latest_profile_and_keeps_history(db, tdir, add_transcript, m
     assert app.think("hi", "voice_a") == "Keep going, you know?"
     assert mock_gateway[0]["messages"][0]["content"] == BASE_SYSTEM_PROMPT
 
-    learner = StyleLearner(db, lambda *a, **k: '{"habits": []}', transcripts_dir=tdir)
+    learner = StyleLearner(db, lambda *a, **k: '{"habits": []}')
     learner.process_transcript(add_transcript("um bro um"))
     learner.process_transcript(add_transcript("um bro yeah"))
 
@@ -110,7 +110,7 @@ def test_failed_llm_call_does_not_change_history(monkeypatch):
 # --- background worker ----------------------------------------------------------
 
 def make_service(db, tdir, chat=None, batch_size=5):
-    learner = StyleLearner(db, chat or (lambda *a, **k: '{"habits": []}'), transcripts_dir=tdir, batch_size=batch_size)
+    learner = StyleLearner(db, chat or (lambda *a, **k: '{"habits": []}'), batch_size=batch_size)
     return StyleLearningService(db, learner, StyleWorker(learner), transcripts_dir=tdir)
 
 
@@ -165,7 +165,7 @@ def test_slow_analysis_does_not_delay_the_reply(db, tdir, mock_gateway, monkeypa
 
 
 def test_full_queue_keeps_task_pending_for_later(db, tdir):
-    learner = StyleLearner(db, lambda *a, **k: '{"habits": []}', transcripts_dir=tdir)
+    learner = StyleLearner(db, lambda *a, **k: '{"habits": []}')
     service = StyleLearningService(db, learner, StyleWorker(learner, maxsize=1), transcripts_dir=tdir)
     # Worker not started, so the queue fills up.
     service.record("bro", "voice_a")
@@ -206,3 +206,30 @@ def test_shutdown_finishes_queued_work(db, tdir):
         service.record(f"bro number {i}", "voice_a")
     assert service.shutdown(timeout=10)
     assert db.get_style_profile("voice_a")["total_samples"] == 5
+
+
+def test_blank_consent_answer_asks_again(db, monkeypatch):
+    answers = iter(["", "  ", "y"])
+    monkeypatch.setattr("builtins.input", lambda _prompt: next(answers))
+    assert app.ask_learning_consent(db, "voice_a") is True
+    assert db.get_learning_consent("voice_a") is True
+
+
+def test_saved_no_is_reported_and_learn_flag_asks_again(db, monkeypatch, capsys):
+    db.set_learning_consent("voice_a", False)
+    monkeypatch.setattr("builtins.input", lambda _prompt: pytest.fail("should not ask"))
+    assert app.ask_learning_consent(db, "voice_a") is False
+    assert "--learn" in capsys.readouterr().out
+
+    monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
+    assert app.ask_learning_consent(db, "voice_a", ask_again=True) is True
+    assert db.get_learning_consent("voice_a") is True
+
+
+def test_database_keeps_the_text_not_a_local_path(db, tdir):
+    service = make_service(db, tdir)
+    tid = service.record("  um,   bro\tyeah ", "voice_a")
+    with db._read() as conn:
+        row = dict(conn.execute("SELECT * FROM transcripts WHERE transcript_id = ?", (tid,)).fetchone())
+    assert row["text"] == "um, bro yeah"
+    assert "file_path" not in row

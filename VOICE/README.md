@@ -8,6 +8,7 @@ A voice chat with your future self, in your own cloned voice. Over time it also 
 ```
 uv run main.py                 # normal conversation
 uv run main.py --no-learning   # talk without saving anything for style learning
+uv run main.py --learn         # ask the learning question again (turn learning back on)
 uv run main.py --reset-style   # delete everything learned for one voice
 uv run pytest                  # run the tests (no API calls, everything is mocked)
 ```
@@ -22,8 +23,10 @@ Optional settings in `.env`:
 | `LLM_ANALYSIS_BATCH_SIZE` | `1` | Run the LLM analysis after this many new transcripts (1 = every turn) |
 | `STYLE_MIN_SAMPLES` | `2` | A habit must appear in this many separate turns before it shapes replies |
 | `STYLE_MIN_OCCURRENCES` | `2` | ...and at least this many times in total |
-| `DEAR_TOMORROW_DB` | `dear_tomorrow.db` | SQLite database path |
-| `DEAR_TOMORROW_TRANSCRIPTS` | `transcripts/` | Where transcript text files go |
+| `STYLE_DB` | `sqlite` | `sqlite` = local file, `supabase` = Supabase PostgreSQL (connection settings are read from `backend/.env`) |
+| `SUPABASE_SCHEMA` | `voice_style` | Supabase schema for the 4 style tables, kept apart from the app's `public` tables |
+| `DEAR_TOMORROW_DB` | `dear_tomorrow.db` | SQLite database path (when `STYLE_DB=sqlite`) |
+| `DEAR_TOMORROW_TRANSCRIPTS` | `transcripts/` | Where the local copy of each turn's text goes |
 
 ## Files
 
@@ -32,11 +35,11 @@ Optional settings in `.env`:
 | `main.py` | Voice selection, mic recording + STT, LLM reply, TTS playback, conversation loop, consent prompt, command-line options |
 | `config.py` | Environment variables and settings |
 | `prompts.py` | `build_system_prompt(style_profile)` |
-| `transcript.py` | Append each user turn to one text file per voice (`transcripts/<voice>.txt`) |
+| `transcript.py` | Keep a local copy of each user turn, one text file per voice (`transcripts/<voice>.txt`) |
 | `style_analyzer.py` | Rule-based counting + LLM contextual analysis |
 | `style_learner.py` | Merge new findings into the long-term profile |
 | `style_worker.py` | Background thread so learning never slows down replies |
-| `database.py` | SQLite tables and queries |
+| `database.py` | Tables and queries; SQLite and Supabase (PostgreSQL) share the same SQL |
 
 ## How learning works
 
@@ -64,6 +67,13 @@ To teach the rules extra words, create `style_vocabulary.json` here:
 
 ## Privacy
 
-Transcripts, the database, recordings and logs stay on this computer and are git-ignored.
+Each turn's text is stored in the database (`transcripts.text`), which is what the analysis reads.
+With `STYLE_DB=supabase` that text and the learned habits are in Supabase; the local transcript
+copies, recordings and logs stay on this computer and are git-ignored.
 The app asks once per voice before learning, `--no-learning` skips it for a session, and
 `--reset-style` deletes a voice's transcripts and profile. Logs contain IDs and counts only.
+
+## Tests
+
+`uv run pytest` always uses a temporary SQLite file and never touches Supabase.
+To run the same tests on the PostgreSQL code, set `VOICE_TEST_PG_URL` to a throwaway local database (each test creates and drops its own schema).

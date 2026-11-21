@@ -1,8 +1,10 @@
-"""SQLite storage for speaking style profiles, learned patterns and transcript bookkeeping.
+"""Storage for speaking style profiles, learned patterns and transcript bookkeeping.
 
-Every method opens its own short-lived connection, so the conversation loop and the
-background style worker can use the database at the same time. WAL mode lets reads
-continue while the worker writes, and every multi-row update runs in one transaction.
+Two backends share the same SQL:
+- StyleDatabase: a local SQLite file. Every method opens its own short-lived connection,
+  and WAL mode lets reads continue while the background worker writes.
+- PostgresStyleDatabase: Supabase (PostgreSQL), using a small connection pool.
+Either way, every multi-row update runs in one transaction.
 """
 import json
 import sqlite3
@@ -49,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_patterns_voice_expression ON speaking_patterns(vo
 CREATE TABLE IF NOT EXISTS transcripts (
     transcript_id        TEXT PRIMARY KEY,
     voice_id             TEXT NOT NULL REFERENCES voice_profiles(voice_id) ON DELETE CASCADE,
-    file_path            TEXT NOT NULL,
+    text                 TEXT NOT NULL,   -- what the user said in this turn
     word_count           INTEGER NOT NULL,
     analysis_status      TEXT NOT NULL DEFAULT 'pending',
     llm_analysis_status  TEXT NOT NULL DEFAULT 'pending',
@@ -76,6 +78,13 @@ CREATE TABLE IF NOT EXISTS transcript_patterns (
 
 def utcnow():
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def _load_json(value):
+    """JSON columns come back as text from SQLite and as a dict from PostgreSQL (JSONB)."""
+    if isinstance(value, dict):
+        return value
+    return json.loads(value or "{}")
 
 
 class StyleDatabase:
@@ -123,6 +132,9 @@ class StyleDatabase:
         finally:
             conn.close()
 
+    def close(self):
+        """Nothing to close: every SQLite call uses its own connection."""
+
     # --- profiles -----------------------------------------------------------
 
     def ensure_profile(self, voice_id, display_name=None):
@@ -132,15 +144,16 @@ class StyleDatabase:
             self._ensure_profile(conn, voice_id, display_name, now)
             if display_name:
                 conn.execute(
-                    "UPDATE voice_profiles SET display_name = ? WHERE voice_id = ? AND display_name IS NOT ?",
+                    "UPDATE voice_profiles SET display_name = ? WHERE voice_id = ? "
+                    "AND (display_name IS NULL OR display_name <> ?)",
                     (display_name, voice_id, display_name),
                 )
 
     @staticmethod
     def _ensure_profile(conn, voice_id, display_name, now):
         conn.execute(
-            "INSERT OR IGNORE INTO voice_profiles (voice_id, display_name, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO voice_profiles (voice_id, display_name, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
             (voice_id, display_name, now, now),
         )
 
@@ -181,8 +194,8 @@ class StyleDatabase:
             "display_name": profile["display_name"],
             "total_words": profile["total_words"],
             "total_samples": profile["total_samples"],
-            "tone_profile": json.loads(profile["tone_profile"] or "{}"),
-            "speaking_habits": json.loads(profile["speaking_habits"] or "{}"),
+            "tone_profile": _load_json(profile["tone_profile"]),
+            "speaking_habits": _load_json(profile["speaking_habits"]),
             "patterns": [dict(p) for p in patterns],
         }
 
@@ -200,22 +213,22 @@ class StyleDatabase:
         """Delete everything learned for one voice. Returns how many transcripts were removed."""
         with self._write() as conn:
             count = conn.execute(
-                "SELECT COUNT(*) FROM transcripts WHERE voice_id = ?", (voice_id,)
-            ).fetchone()[0]
+                "SELECT COUNT(*) AS n FROM transcripts WHERE voice_id = ?", (voice_id,)
+            ).fetchone()["n"]
             conn.execute("DELETE FROM voice_profiles WHERE voice_id = ?", (voice_id,))  # cascades
         return count
 
     # --- transcripts and rule-based analysis ----------------------------------
 
-    def register_transcript(self, transcript_id, voice_id, file_path, word_count):
-        """Record a saved transcript as pending analysis. Returns False if it was already registered."""
+    def register_transcript(self, transcript_id, voice_id, text, word_count):
+        """Store what the user said as pending analysis. Returns False if it was already registered."""
         now = utcnow()
         with self._write() as conn:
             self._ensure_profile(conn, voice_id, None, now)
             cur = conn.execute(
-                "INSERT OR IGNORE INTO transcripts (transcript_id, voice_id, file_path, word_count, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (transcript_id, voice_id, str(file_path), word_count, now),
+                "INSERT INTO transcripts (transcript_id, voice_id, text, word_count, created_at) "
+                "VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+                (transcript_id, voice_id, text, word_count, now),
             )
         return cur.rowcount == 1
 
@@ -284,8 +297,8 @@ class StyleDatabase:
         category = existing["category"] if existing else category  # one category per expression
 
         cur = conn.execute(
-            "INSERT OR IGNORE INTO transcript_patterns (transcript_id, expression, category, occurrence_count) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO transcript_patterns (transcript_id, expression, category, occurrence_count) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
             (transcript_id, expression, category, count),
         )
         if cur.rowcount != 1:
@@ -311,9 +324,9 @@ class StyleDatabase:
         """Transcripts that passed rule analysis and still need LLM analysis, oldest first."""
         with self._read() as conn:
             rows = conn.execute(
-                "SELECT transcript_id, file_path FROM transcripts "
+                "SELECT transcript_id, text FROM transcripts "
                 "WHERE voice_id = ? AND analysis_status = ? AND llm_analysis_status IN (?, ?) AND llm_attempts < ? "
-                "ORDER BY created_at, rowid",
+                "ORDER BY created_at, transcript_id",
                 (voice_id, COMPLETED, PENDING, FAILED, max_attempts),
             ).fetchall()
         return [dict(r) for r in rows]
@@ -356,8 +369,8 @@ class StyleDatabase:
             profile = conn.execute(
                 "SELECT tone_profile, speaking_habits FROM voice_profiles WHERE voice_id = ?", (voice_id,)
             ).fetchone()
-            tone_profile = json.loads(profile["tone_profile"] or "{}")
-            habits = json.loads(profile["speaking_habits"] or "{}")
+            tone_profile = _load_json(profile["tone_profile"])
+            habits = _load_json(profile["speaking_habits"])
             if tone:
                 tone_profile = merge_tone_votes(tone_profile, tone)
             if notes:
@@ -379,14 +392,6 @@ class StyleDatabase:
                 [(FAILED, tid, PROCESSING) for tid in transcript_ids],
             )
 
-    def give_up_llm(self, transcript_ids):
-        """Stop retrying LLM analysis for transcripts that can't be analysed (e.g. file missing)."""
-        with self._write() as conn:
-            conn.executemany(
-                "UPDATE transcripts SET llm_analysis_status = ?, llm_attempts = ? WHERE transcript_id = ?",
-                [(FAILED, 1_000_000, tid) for tid in transcript_ids],
-            )
-
     # --- recovery after a restart -------------------------------------------
 
     def reset_interrupted(self):
@@ -401,7 +406,7 @@ class StyleDatabase:
         with self._read() as conn:
             rows = conn.execute(
                 "SELECT transcript_id FROM transcripts WHERE analysis_status IN (?, ?) AND rule_attempts < ? "
-                "ORDER BY created_at, rowid",
+                "ORDER BY created_at, transcript_id",
                 (PENDING, FAILED, max_attempts),
             ).fetchall()
         return [r["transcript_id"] for r in rows]
@@ -414,6 +419,157 @@ class StyleDatabase:
                 (COMPLETED, PENDING, FAILED, max_attempts, batch_size),
             ).fetchall()
         return [r["voice_id"] for r in rows]
+
+
+PG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS voice_profiles (
+    voice_id          TEXT PRIMARY KEY,
+    display_name      TEXT,
+    total_words       INTEGER NOT NULL DEFAULT 0,
+    total_samples     INTEGER NOT NULL DEFAULT 0,
+    tone_profile      JSONB NOT NULL DEFAULT '{}',
+    speaking_habits   JSONB NOT NULL DEFAULT '{}',
+    learning_enabled  INTEGER,
+    created_at        TIMESTAMPTZ NOT NULL,
+    updated_at        TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS speaking_patterns (
+    id                 BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    voice_id           TEXT NOT NULL REFERENCES voice_profiles(voice_id) ON DELETE CASCADE,
+    category           TEXT NOT NULL,
+    expression         TEXT NOT NULL,
+    source             TEXT NOT NULL DEFAULT 'rule',
+    context_dependent  INTEGER NOT NULL DEFAULT 0,
+    occurrence_count   INTEGER NOT NULL DEFAULT 0,
+    sample_count       INTEGER NOT NULL DEFAULT 0,
+    first_seen_at      TIMESTAMPTZ NOT NULL,
+    last_seen_at       TIMESTAMPTZ NOT NULL,
+    UNIQUE (voice_id, category, expression)
+);
+CREATE INDEX IF NOT EXISTS idx_patterns_voice_expression ON speaking_patterns(voice_id, expression);
+
+CREATE TABLE IF NOT EXISTS transcripts (
+    transcript_id        TEXT PRIMARY KEY,
+    voice_id             TEXT NOT NULL REFERENCES voice_profiles(voice_id) ON DELETE CASCADE,
+    text                 TEXT NOT NULL,   -- what the user said in this turn
+    word_count           INTEGER NOT NULL,
+    analysis_status      TEXT NOT NULL DEFAULT 'pending',
+    llm_analysis_status  TEXT NOT NULL DEFAULT 'pending',
+    rule_attempts        INTEGER NOT NULL DEFAULT 0,
+    llm_attempts         INTEGER NOT NULL DEFAULT 0,
+    created_at           TIMESTAMPTZ NOT NULL,
+    processed_at         TIMESTAMPTZ,
+    llm_processed_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_transcripts_status ON transcripts(voice_id, analysis_status, llm_analysis_status);
+
+CREATE TABLE IF NOT EXISTS transcript_patterns (
+    transcript_id     TEXT NOT NULL REFERENCES transcripts(transcript_id) ON DELETE CASCADE,
+    expression        TEXT NOT NULL,
+    category          TEXT NOT NULL,
+    occurrence_count  INTEGER NOT NULL,
+    PRIMARY KEY (transcript_id, expression)
+);
+"""
+
+
+class _PgConnection:
+    """Lets the shared SQL (written with ? placeholders) run on a psycopg connection."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        return self._conn.execute(sql.replace("?", "%s"), params)
+
+    def executemany(self, sql, rows):
+        cur = self._conn.cursor()
+        cur.executemany(sql.replace("?", "%s"), rows)
+        return cur
+
+
+class PostgresStyleDatabase(StyleDatabase):
+    """The same storage, kept in PostgreSQL (Supabase) in its own schema.
+
+    Tables live in `schema` (default voice_style), so they never mix with the app's own
+    tables in `public`. A small pool keeps connections open, because opening a new TLS
+    connection to Supabase for every query would slow down each reply.
+    """
+
+    def __init__(self, conninfo, schema="voice_style", min_size=1, max_size=4):
+        import psycopg
+        from psycopg import sql
+        from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
+
+        if not schema.isidentifier():
+            raise ValueError(f"Invalid schema name: {schema!r}")
+        self.schema = schema
+        self.path = None
+
+        with psycopg.connect(conninfo, autocommit=True) as conn:
+            conn.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(sql.Identifier(schema)))
+            with conn.transaction():
+                conn.execute(sql.SQL("SET LOCAL search_path TO {}").format(sql.Identifier(schema)))
+                for statement in PG_SCHEMA.split(";"):
+                    if statement.strip():
+                        conn.execute(statement)
+
+        def configure(conn):
+            conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+            conn.commit()
+
+        self.pool = ConnectionPool(
+            conninfo,
+            min_size=min_size,
+            max_size=max_size,
+            kwargs={"row_factory": dict_row},
+            configure=configure,
+            check=ConnectionPool.check_connection,  # replace connections Supabase dropped while idle
+            open=True,
+        )
+
+    @contextmanager
+    def _read(self):
+        with self.pool.connection() as conn:
+            yield _PgConnection(conn)
+
+    @contextmanager
+    def _write(self):
+        # pool.connection() commits when the block ends and rolls back if it raises.
+        # Claims use conditional UPDATEs, so two workers can never take the same task.
+        with self.pool.connection() as conn:
+            yield _PgConnection(conn)
+
+    def close(self):
+        self.pool.close()
+
+
+def supabase_conninfo(env_file=None):
+    """Build connection settings from backend/.env (keys: user, password, host, port, dbname)."""
+    from dotenv import dotenv_values
+    from psycopg.conninfo import make_conninfo
+
+    env_file = Path(env_file or config.SUPABASE_ENV_FILE)
+    if not env_file.exists():
+        raise FileNotFoundError(f"Supabase settings not found: {env_file}")
+    values = dotenv_values(env_file)
+    keys = ["user", "password", "host", "port", "dbname"]
+    missing = [k for k in keys if not values.get(k)]
+    if missing:
+        raise ValueError(f"Missing Supabase settings in {env_file}: {', '.join(missing)}")
+    # make_conninfo quotes every value, so special characters in the password are safe.
+    return make_conninfo(**{k: values[k] for k in keys}, sslmode="require", connect_timeout=10)
+
+
+def create_database():
+    """Open the database chosen by STYLE_DB in .env ("sqlite" or "supabase")."""
+    if config.STYLE_DB == "supabase":
+        return PostgresStyleDatabase(supabase_conninfo(), schema=config.SUPABASE_SCHEMA)
+    if config.STYLE_DB == "sqlite":
+        return StyleDatabase(config.DB_PATH)
+    raise ValueError(f"Unknown STYLE_DB {config.STYLE_DB!r}; use 'sqlite' or 'supabase'")
 
 
 def merge_tone_votes(existing, new_votes):
@@ -441,7 +597,7 @@ def get_database():
     global _default_db
     with _default_lock:
         if _default_db is None:
-            _default_db = StyleDatabase(config.DB_PATH)
+            _default_db = create_database()
         return _default_db
 
 
@@ -450,3 +606,12 @@ def set_database(db):
     global _default_db
     with _default_lock:
         _default_db = db
+
+
+def close_database():
+    """Close the app-wide database if it was opened (releases Supabase connections)."""
+    global _default_db
+    with _default_lock:
+        if _default_db is not None:
+            _default_db.close()
+            _default_db = None

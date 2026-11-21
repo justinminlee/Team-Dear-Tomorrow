@@ -16,7 +16,7 @@ def counts(db, voice_id="voice_a"):
 
 
 def learner_for(db, tdir, chat=None, batch_size=5):
-    return StyleLearner(db, chat or (lambda *a, **k: '{"habits": []}'), transcripts_dir=tdir, batch_size=batch_size)
+    return StyleLearner(db, chat or (lambda *a, **k: '{"habits": []}'), batch_size=batch_size)
 
 
 def test_spec_merge_example(db, tdir, add_transcript):
@@ -49,8 +49,13 @@ def test_profile_totals_and_frequency(db, tdir, add_transcript):
 
 def test_data_persists_across_restarts(tmp_path, tdir, add_transcript, db):
     learner_for(db, tdir).process_transcript(add_transcript("bro"))
-    reopened = StyleDatabase(db.path)
+    if db.path is None:  # PostgreSQL: open a second, independent connection pool on the same schema
+        from database import PostgresStyleDatabase
+        reopened = PostgresStyleDatabase(db.pool.conninfo, schema=db.schema)
+    else:
+        reopened = StyleDatabase(db.path)
     assert counts(reopened)["slang"] == {"bro": 1}
+    reopened.close()
 
 
 def test_voices_are_isolated(db, tdir, add_transcript):
@@ -72,8 +77,8 @@ def test_same_transcript_is_never_counted_twice(db, tdir, add_transcript):
 
 
 def test_duplicate_registration_is_ignored(db, tdir):
-    assert db.register_transcript("t1", "voice_a", tdir / "x.txt", 3) is True
-    assert db.register_transcript("t1", "voice_a", tdir / "x.txt", 3) is False
+    assert db.register_transcript("t1", "voice_a", "um bro yeah", 3) is True
+    assert db.register_transcript("t1", "voice_a", "um bro yeah", 3) is False
 
 
 def test_interrupted_tasks_are_recovered(db, tdir, add_transcript):
@@ -89,7 +94,8 @@ def test_interrupted_tasks_are_recovered(db, tdir, add_transcript):
 def test_failed_rule_task_can_retry(db, tdir, add_transcript, monkeypatch):
     learner = learner_for(db, tdir)
     tid = add_transcript("bro")
-    monkeypatch.setattr("style_learner.read_transcript", lambda *a: (_ for _ in ()).throw(OSError("disk")))
+    monkeypatch.setattr("style_learner.style_analyzer.extract_rule_patterns",
+                        lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
     assert learner.process_transcript(tid) is False
     monkeypatch.undo()
     assert learner.process_transcript(tid) is True
@@ -175,7 +181,7 @@ def test_failed_llm_batch_retries_without_inflating_counts(db, tdir, add_transcr
 
 def test_llm_gives_up_after_max_attempts(db, tdir, add_transcript, fake_chat):
     chat = fake_chat(*[RuntimeError("down")] * 10)
-    learner = StyleLearner(db, chat, transcripts_dir=tdir, batch_size=1, max_attempts=2)
+    learner = StyleLearner(db, chat, batch_size=1, max_attempts=2)
     learner.process_transcript(add_transcript("hello"))
     learner.run_llm_batches("voice_a")
     learner.run_llm_batches("voice_a")

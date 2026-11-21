@@ -132,8 +132,11 @@ class StyleLearningService:
         if not text:
             return None
         try:
-            transcript_id, path = save_transcript(text, voice_id, self.transcripts_dir)
-            self.db.register_transcript(transcript_id, voice_id, path, word_count(text))
+            # A local copy goes to transcripts/<voice>.txt; the database keeps the text itself,
+            # so analysis never depends on a path that only exists on this computer.
+            transcript_id, _ = save_transcript(text, voice_id, self.transcripts_dir)
+            text = " ".join(text.split())  # same clean-up as the local copy
+            self.db.register_transcript(transcript_id, voice_id, text, word_count(text))
             self.worker.submit(transcript_id)
             return transcript_id
         except Exception:
