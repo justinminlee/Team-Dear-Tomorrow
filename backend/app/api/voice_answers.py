@@ -11,8 +11,9 @@ Some questions (the free-text ones in "Your Future Self") are answered out loud:
 2. POST /questionnaire/voice-samples
    After the answers are saved (POST /questionnaire/answers), the page sends which of
    them were spoken. They are queued as speaking-style samples in the voice app's
-   tables (dim_voice_style / fact_transcript). The voice app analyses them the next time
-   it starts, so the future self talks a bit like the user from the first conversation.
+   tables (dim_voice_style / fact_transcript) and analysed right away in a background
+   task (app/services/style_service.py), so the website call already talks a bit like
+   the user. The voice app can analyse them too; the two never double count.
 
 Speaking style is stored per user, keyed by the user's id. Recording an answer counts
 as agreeing to style learning, which the questionnaire page explains next to the button.
@@ -25,7 +26,7 @@ import re
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -33,6 +34,8 @@ from sqlalchemy.orm import Session
 from app.api.auth import current_user
 from app.api.questionnaire import load_latest_answers
 from app.database.session import get_db
+from app.services import style_service
+from app.services.style_store import StyleStore
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/questionnaire", tags=["questionnaire"])
@@ -156,8 +159,9 @@ def store_samples(db: Session, user: dict, samples: list[tuple[uuid.UUID, str]])
 
 
 @router.post("/voice-samples")
-def save_voice_samples(body: VoiceSamplesRequest, user: dict = Depends(current_user),
-                       db: Session = Depends(get_db)):
+def save_voice_samples(body: VoiceSamplesRequest, background: BackgroundTasks,
+                       user: dict = Depends(current_user), db: Session = Depends(get_db),
+                       store: StyleStore = Depends(style_service.get_style_store)):
     """Queue the user's saved spoken answers for speaking-style learning.
 
     Only answers that are already saved are used, so the text always matches what is
@@ -169,8 +173,11 @@ def save_voice_samples(body: VoiceSamplesRequest, user: dict = Depends(current_u
     if not samples:
         return {"queued": 0}
     try:
-        return {"queued": store_samples(db, user, samples)}
+        queued = store_samples(db, user, samples)
     except Exception:
         db.rollback()
         log.exception("Could not queue spoken answers for style learning")
         raise HTTPException(503, "Your answers are saved, but voice learning is unavailable right now.") from None
+    # Learn from the new samples after the response is sent (also retries any left waiting).
+    background.add_task(style_service.learn_style, store, str(user["id"]))
+    return {"queued": queued}

@@ -104,7 +104,7 @@ def fake(monkeypatch):
     monkeypatch.setattr(call, "load_active_questions", lambda db: QUESTIONS)
     monkeypatch.setattr(call, "load_latest_answers", lambda db, uid: ANSWERS)
     monkeypatch.setattr(voice_ai, "chat", fake_chat)
-    monkeypatch.setattr(voice_ai, "synthesize", lambda text: b"ID3fake-mp3")
+    monkeypatch.setattr(voice_ai, "synthesize", lambda text, voice=None: b"ID3fake-mp3")
     monkeypatch.setattr(voice_ai, "transcribe", lambda audio, context=None: "I'm worried about my career")
     app.dependency_overrides[get_db] = lambda: None
     app.dependency_overrides[current_user] = lambda: USER

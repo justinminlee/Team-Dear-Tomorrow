@@ -15,3 +15,7 @@ from app.models.FactShare import FactShare
 from app.models.FactPersonaVersion import FactPersonaVersion
 from app.models.FactAiMemory import FactAiMemory
 from app.models.FactMemoryFeedback import FactMemoryFeedback
+from app.models.DimVoiceStyle import DimVoiceStyle
+from app.models.FactTranscript import FactTranscript
+from app.models.FactSpeakingPattern import FactSpeakingPattern
+from app.models.FactTranscriptPattern import FactTranscriptPattern

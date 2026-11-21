@@ -22,10 +22,10 @@ export function useFutureCall(onAuthError: () => void) {
   // Hang up if the app unmounts mid-call.
   useEffect(() => () => void callRef.current?.end(), []);
 
-  /** Call from a click handler (browser audio rules). */
-  const start = useCallback(() => {
+  /** Call from a click handler (browser audio rules). `voice`: a name from callApi.voices(). */
+  const start = useCallback((voice?: string) => {
     callRef.current?.end();
-    const call = new FutureCall(setSnapshot, () => onAuthErrorRef.current());
+    const call = new FutureCall(setSnapshot, () => onAuthErrorRef.current(), voice);
     callRef.current = call;
     return call.prepare();
   }, []);

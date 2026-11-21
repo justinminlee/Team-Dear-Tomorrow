@@ -9,6 +9,7 @@ import ConnectingPage from "./components/ConnectingPage";
 import FutureCallPage from "./components/FutureCallPage";
 import CallEndPage from "./components/CallEndPage";
 import { useFutureCall } from "./call/useFutureCall";
+import { callApi } from "./api/call";
 import type { CallSnapshot } from "./call/futureCall";
 import { ApiError, authApi } from "./api/auth";
 import { questionnaireApi } from "./api/questionnaire";
@@ -44,8 +45,21 @@ export default function App() {
   useEffect(() => () => window.clearTimeout(connectTimer.current), []);
 
   // Start from a click: the browser only allows call audio after a user gesture.
+  // Cloned voices the future self can speak with (TJ, Peter, Indian), chosen before the call.
+  const [voices, setVoices] = useState<string[]>([]);
+  const [voice, setVoice] = useState("");
+  useEffect(() => {
+    callApi
+      .voices()
+      .then((res) => {
+        setVoices(res.voices);
+        setVoice((current) => current || res.default || "");
+      })
+      .catch(() => undefined); // no list: the call still works with the server's default voice
+  }, []);
+
   const startCall = () => {
-    void call.start();
+    void call.start(voice || undefined);
     setPage("connecting");
   };
 
@@ -232,6 +246,47 @@ export default function App() {
       >
         Your answers have been saved. Your future self is ready to talk.
       </p>
+
+      {voices.length > 1 && (
+        <div style={{ margin: "0 0 28px" }}>
+          <p
+            id="voice-picker-label"
+            style={{ color: "#a8a8aa", fontSize: "12px", letterSpacing: "1.5px", fontWeight: 650, margin: "0 0 12px" }}
+          >
+            CHOOSE YOUR FUTURE SELF'S VOICE
+          </p>
+          <div
+            role="radiogroup"
+            aria-labelledby="voice-picker-label"
+            style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}
+          >
+            {voices.map((name) => {
+              const selected = voice === name;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setVoice(name)}
+                  style={{
+                    background: selected ? "#2a2926" : "transparent",
+                    color: selected ? "#f3efe8" : "#a8a8aa",
+                    border: `1px solid ${selected ? "#d9c8ae" : "#444649"}`,
+                    borderRadius: "999px",
+                    padding: "10px 22px",
+                    fontSize: "14px",
+                    fontWeight: 650,
+                    cursor: "pointer",
+                  }}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <button
         onClick={startCall}

@@ -5,7 +5,10 @@ but works on in-memory audio so it can run behind a web API.
 
 Settings (backend/.env):
     ASSEMBLYAI_API_KEY    required
-    ASSEMBLYAI_VOICE_ID   optional: cloned voice to speak with (defaults to AssemblyAI's aai-jane)
+    TJ_VOICE_ID, PETER_VOICE_ID, INDIAN_VOICE_ID
+                          cloned voices the user can choose for the call (see VOICE_OPTIONS)
+    ASSEMBLYAI_VOICE_ID   optional: voice used when none is chosen (else the first cloned
+                          voice above; AssemblyAI's aai-jane only if none are set)
     LLM_GATEWAY_MODEL     optional: any model on AssemblyAI's LLM Gateway
 """
 import os
@@ -127,11 +130,38 @@ def clean_for_speech(text: str) -> str:
 
 # ---------- Text to speech ----------
 
-def synthesize(text: str) -> bytes:
-    """Speak text in the configured (cloned) voice. Returns MP3 bytes."""
+# Cloned voices the user can pick for the call: display name -> env var holding the
+# AssemblyAI voice id (same voices and env vars as VOICE/config.py).
+VOICE_OPTIONS = {"TJ": "TJ_VOICE_ID", "Peter": "PETER_VOICE_ID", "Indian": "INDIAN_VOICE_ID"}
+
+
+class UnknownVoice(ValueError):
+    pass
+
+
+def available_voices() -> list[str]:
+    """Names of the cloned voices that have an id configured, in display order."""
+    return [name for name, env in VOICE_OPTIONS.items() if os.getenv(env, "").strip()]
+
+
+def voice_id_for(name: str | None) -> str | None:
+    """AssemblyAI voice id for a chosen voice name. No name: ASSEMBLYAI_VOICE_ID, else the
+    first cloned voice, else None (AssemblyAI's default voice)."""
+    if name:
+        if name not in available_voices():
+            raise UnknownVoice(f"Unknown voice '{name}'. Choose one of: {', '.join(available_voices())}")
+        return os.environ[VOICE_OPTIONS[name]].strip()
+    default = os.getenv("ASSEMBLYAI_VOICE_ID", "").strip()
+    if default:
+        return default
+    voices = available_voices()
+    return os.environ[VOICE_OPTIONS[voices[0]]].strip() if voices else None
+
+
+def synthesize(text: str, voice: str | None = None) -> bytes:
+    """Speak text in the chosen cloned voice (a name from VOICE_OPTIONS). Returns MP3 bytes."""
     _configure_sdk()
-    voice_id = os.getenv("ASSEMBLYAI_VOICE_ID", "").strip() or None
-    config = aai.TTSConfig(voice_id=voice_id, encoding="mp3")
+    config = aai.TTSConfig(voice_id=voice_id_for(voice), encoding="mp3")
     try:
         return aai.TextToSpeech().synthesize(text, config).audio
     except Exception as exc:

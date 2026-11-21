@@ -87,10 +87,13 @@ export class FutureCall {
 
   private readonly onChange: (snapshot: CallSnapshot) => void;
   private readonly onAuthError: () => void;
+  /** Cloned voice the future self speaks with (a name from callApi.voices()); undefined = server default. */
+  private readonly voice: string | undefined;
 
-  constructor(onChange: (snapshot: CallSnapshot) => void, onAuthError: () => void) {
+  constructor(onChange: (snapshot: CallSnapshot) => void, onAuthError: () => void, voice?: string) {
     this.onChange = onChange;
     this.onAuthError = onAuthError;
+    this.voice = voice;
   }
 
   /** Must be called from a click handler: browsers only allow audio started by a user gesture. */
@@ -147,7 +150,7 @@ export class FutureCall {
           .catch((err: unknown) => {
             throw new Error(microphoneProblem(err));
           }),
-        callApi.start(),
+        callApi.start(this.voice),
       ]);
       if (this.state.phase !== "preparing" || !this.ctx) {
         stream.getTracks().forEach((t) => t.stop()); // hung up while connecting
@@ -261,7 +264,7 @@ export class FutureCall {
     const turn = this.turn;
     this.set({ phase: "thinking", caption: "" });
     try {
-      const { heard, reply } = await callApi.turn(wav, this.history);
+      const { heard, reply } = await callApi.turn(wav, this.history, this.voice);
       if (turn !== this.turn) return; // hung up meanwhile
       if (!heard || !reply) {
         this.listen();
